@@ -37,6 +37,7 @@ HANDLER=$1
 # exit) on failure when set -e is set
 git merge-base --is-ancestor $COMBINED $CURRENT || (echo "$COMBINED_PROVIDED is not an ancestor of $BRANCH_OR_CURRENT_SHORT"; false) || exit 1
 git diff --quiet || (echo "The repo has uncommitted changes.  Stash, commit or reset them and then try again."; false) || exit 1
+git diff --cached --quiet || (echo "The repo has changes in the staging area.  Stash, commit or reset them and then try again."; false) || exit 1
 # If it's a merge commit (i.e. it has a second parent)
 git rev-parse --verify --quiet "$COMBINED^2" > /dev/null && echo "$COMBINED_PROVIDED is a merge commit.  Cannot split." && exit 1 || true
 
