@@ -65,7 +65,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
 
-  applySubsequentCommits io ex branch combined current
+  applySubsequentCommits io ex branch current combined
 
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
@@ -173,7 +173,7 @@ applySubsequentCommits ::
   String ->
   String ->
   Eff es ()
-applySubsequentCommits io ex branch combined current = do
+applySubsequentCommits io ex branch current combined = do
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString s))
         case exitCode of
