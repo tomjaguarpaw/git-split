@@ -33,6 +33,9 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       [arg1, arg2] -> pure (arg1, arg2)
       _ -> throw ex "Expected two arguments"
 
+  let handler = arg1
+  let combinedProvided = arg2
+
   branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
   current <- fmap LBS.unpack (rBind "git rev-parse HEAD")
   currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
@@ -43,11 +46,9 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
             branch
           else currentShort
 
-  let combinedProvided = arg2
   combined <-
     fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
   combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
-  let handler = arg1
 
   let throwFailed s msg =
         effIO io (runProcess (fromString s)) >>= \case
