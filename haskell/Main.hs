@@ -80,10 +80,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       ExitSuccess -> throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
       ExitFailure {} -> pure ()
 
-  combinedParent <-
-    rBind ("git rev-parse " <> combined <> "^")
-  combinedParentShort <-
-    rBind ("git rev-parse --short " <> combined <> "^")
+  combinedParent <- rBind ("git rev-parse " <> combined <> "^")
+  combinedParentShort <- rBind ("git rev-parse --short " <> combined <> "^")
 
   echoN "checkout..."
   rThrow ("git checkout --quiet " <> combined)
