@@ -34,14 +34,20 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
 
   ( branch,
     combined,
-    current,
-    branchOrCurrentShort
+    current
     ) <-
     prepareToSplit io ex combinedProvided
 
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
   echo "exit code 0"
+
+  currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
+  let branchOrCurrentShort =
+        if not (null branch)
+          then
+            branch
+          else currentShort
 
   effIO io (runProcess (fromString handler)) >>= \case
     ExitSuccess -> pure ()
@@ -68,7 +74,7 @@ prepareToSplit ::
   String ->
   Eff
     es
-    (String, String, String, String)
+    (String, String, String)
 prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
@@ -157,7 +163,7 @@ prepareToSplit io ex combinedProvided = do
         <> "). "
     )
 
-  pure (branch, combined, current, branchOrCurrentShort)
+  pure (branch, combined, current)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
