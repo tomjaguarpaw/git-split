@@ -35,23 +35,10 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   ( branch,
     combined,
     current,
-    combinedParentShort,
     branchOrCurrentShort
     ) <-
     prepareToSplit io ex combinedProvided
-  combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
 
-  echo "You wanted to split the commit"
-  echo ""
-  rThrow ("git show --no-patch --pretty=short " <> combined)
-  echo ""
-  echoN
-    ( "I'm now on "
-        <> LBS.unpack combinedShort
-        <> "'s parent ("
-        <> LBS.unpack combinedParentShort
-        <> "). "
-    )
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
   echo "exit code 0"
@@ -81,7 +68,7 @@ prepareToSplit ::
   String ->
   Eff
     es
-    (String, String, String, LBS.ByteString, String)
+    (String, String, String, String)
 prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
@@ -110,8 +97,8 @@ prepareToSplit io ex combinedProvided = do
             branch
           else currentShort
 
-  combined <-
-    fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
+  combined <- fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
+  combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
 
   let throwFailed s msg =
         effIO io (runProcess (fromString s)) >>= \case
@@ -158,7 +145,19 @@ prepareToSplit io ex combinedProvided = do
     then echoN ("branch " <> branch <> " (" <> currentShort <> "). ")
     else echoN (currentShort <> ". ")
 
-  pure (branch, combined, current, combinedParentShort, branchOrCurrentShort)
+  echo "You wanted to split the commit"
+  echo ""
+  rThrow ("git show --no-patch --pretty=short " <> combined)
+  echo ""
+  echoN
+    ( "I'm now on "
+        <> LBS.unpack combinedShort
+        <> "'s parent ("
+        <> LBS.unpack combinedParentShort
+        <> "). "
+    )
+
+  pure (branch, combined, current, branchOrCurrentShort)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
