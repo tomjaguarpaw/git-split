@@ -116,8 +116,8 @@ prepareToSplit io ex combinedProvided = do
     )
 
   throwFailed
-    "git diff --quiet"
-    ( "The repo has uncommitted changes.  "
+    "git diff --cached --quiet"
+    ( "The repo has changes in the staging area.  "
         <> "Stash, commit or reset them and then try again."
     )
 
