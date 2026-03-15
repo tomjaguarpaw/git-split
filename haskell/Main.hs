@@ -1,13 +1,17 @@
 module Main (main) where
 
-import Bluefin.Eff
-import Bluefin.Exception
-import Bluefin.IO
-import Control.Monad
+import Bluefin.Eff (Eff, runEff_, (:>))
+import Bluefin.Exception (Exception, handle, throw)
+import Bluefin.IO (IOE, effIO)
+import Control.Monad (when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
-import Data.String
-import System.Environment
+import Data.String (IsString (fromString))
+import System.Environment (getArgs)
 import System.Process.Typed
+  ( ExitCode (ExitFailure, ExitSuccess),
+    readProcessStdout,
+    runProcess,
+  )
 
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
