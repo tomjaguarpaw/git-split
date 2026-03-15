@@ -32,7 +32,15 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       [arg1, arg2] -> pure (arg1, arg2)
       _ -> throw ex "Expected two arguments"
 
-  (branch, combined, combinedShort, current, currentShort, combinedParentShort, branchOrCurrentShort) <- prepareToSplit io ex combinedProvided
+  ( branch,
+    combined,
+    combinedShort,
+    current,
+    currentShort,
+    combinedParentShort,
+    branchOrCurrentShort
+    ) <-
+    prepareToSplit io ex combinedProvided
 
   echo "You wanted to split the commit"
   echo ""
