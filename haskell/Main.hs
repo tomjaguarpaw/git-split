@@ -68,9 +68,7 @@ prepareToSplit ::
   IOE e1 ->
   Exception String e2 ->
   String ->
-  Eff
-    es
-    (String, String, String)
+  Eff es (String, String, String)
 prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
