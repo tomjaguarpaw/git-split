@@ -32,11 +32,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       [arg1, arg2] -> pure (arg1, arg2)
       _ -> throw ex "Expected two arguments"
 
-  ( branch,
-    current,
-    combined
-    ) <-
-    prepareToSplit io ex combinedProvided
+  t@(branch, current, _) <- prepareToSplit io ex combinedProvided
 
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
@@ -65,7 +61,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
 
-  applySubsequentCommits io ex branch current combined
+  applySubsequentCommits io ex t
 
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
@@ -169,11 +165,9 @@ applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
   Exception String e2 ->
-  String ->
-  String ->
-  String ->
+  (String, String, String) ->
   Eff es ()
-applySubsequentCommits io ex branch current combined = do
+applySubsequentCommits io ex (branch, current, combined) = do
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString s))
         case exitCode of
