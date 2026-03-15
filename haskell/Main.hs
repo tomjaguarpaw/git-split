@@ -33,8 +33,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       _ -> throw ex "Expected two arguments"
 
   ( branch,
-    combined,
-    current
+    current,
+    combined
     ) <-
     prepareToSplit io ex combinedProvided
 
@@ -163,7 +163,7 @@ prepareToSplit io ex combinedProvided = do
         <> "). "
     )
 
-  pure (branch, combined, current)
+  pure (branch, current, combined)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
