@@ -13,11 +13,23 @@ import System.Process.Typed
     runProcess,
   )
 
+main :: IO ()
+main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
+  effIO io getArgs >>= \case
+    [handler, combinedProvided] -> interactive io ex handler combinedProvided
+    _ -> throw ex "Expected two arguments"
+
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
 
-main :: IO ()
-main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
+interactive ::
+  (e2 :> es, e1 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  Eff es ()
+interactive io ex handler combinedProvided = do
   let rBind s = do
         (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
         case exitCode of
@@ -25,11 +37,6 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-
-  (handler, combinedProvided) <-
-    effIO io getArgs >>= \case
-      [arg1, arg2] -> pure (arg1, arg2)
-      _ -> throw ex "Expected two arguments"
 
   t@(branch, _, _) <- prepareToSplit io ex combinedProvided
 
