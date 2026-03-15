@@ -260,7 +260,7 @@ applySubsequentCommits io ex branch combined current currentShort = do
   echo ""
   if not (null branch)
     then
-      echoN ("Your branch is " <> branch)
+      echoN ("Your branch is " <> branch <> ".  ")
     else
       echoN "Your HEAD is detached.  "
 
