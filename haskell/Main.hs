@@ -35,7 +35,6 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   ( branch,
     combined,
     current,
-    currentShort,
     combinedParentShort,
     branchOrCurrentShort
     ) <-
@@ -73,7 +72,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
 
-  applySubsequentCommits io ex branch combined current currentShort
+  applySubsequentCommits io ex branch combined current
 
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
@@ -82,7 +81,7 @@ prepareToSplit ::
   String ->
   Eff
     es
-    (String, String, String, String, LBS.ByteString, String)
+    (String, String, String, LBS.ByteString, String)
 prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
@@ -159,7 +158,7 @@ prepareToSplit io ex combinedProvided = do
     then echoN ("branch " <> branch <> " (" <> currentShort <> "). ")
     else echoN (currentShort <> ". ")
 
-  pure (branch, combined, current, currentShort, combinedParentShort, branchOrCurrentShort)
+  pure (branch, combined, current, combinedParentShort, branchOrCurrentShort)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
@@ -168,9 +167,8 @@ applySubsequentCommits ::
   String ->
   String ->
   String ->
-  String ->
   Eff es ()
-applySubsequentCommits io ex branch combined current currentShort = do
+applySubsequentCommits io ex branch combined current = do
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString s))
         case exitCode of
@@ -262,6 +260,8 @@ applySubsequentCommits io ex branch combined current currentShort = do
       echoN ("Your branch is " <> branch <> ".  ")
     else
       echoN "Your HEAD is detached.  "
+
+  currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
 
   echo
     ( "It was previously "
