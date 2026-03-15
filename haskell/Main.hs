@@ -14,7 +14,6 @@ trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
 
 main :: IO ()
 main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
-  let r s = fmap snd (effIO io (readProcessStdout (fromString s)))
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString s))
         case exitCode of
@@ -32,6 +31,64 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
     effIO io getArgs >>= \case
       [arg1, arg2] -> pure (arg1, arg2)
       _ -> throw ex "Expected two arguments"
+
+  (branch, combined, combinedShort, current, currentShort, combinedParentShort, branchOrCurrentShort) <- prepareToSplit io ex combinedProvided
+
+  echo "You wanted to split the commit"
+  echo ""
+  rThrow ("git show --no-patch --pretty=short " <> combined)
+  echo ""
+  echoN
+    ( "I'm now on "
+        <> LBS.unpack combinedShort
+        <> "'s parent ("
+        <> LBS.unpack combinedParentShort
+        <> "). "
+    )
+  echo ("I'm going to drop you into your chosen handler: " <> handler)
+  echoN "Please make any number of commits and then exit the handler with "
+  echo "exit code 0"
+
+  effIO io (runProcess (fromString handler)) >>= \case
+    ExitSuccess -> pure ()
+    ExitFailure {} -> do
+      afterFailedHandler <- rBind "git rev-parse --short HEAD"
+      rThrow "git reset --quiet --hard"
+      echo
+        ( "The handler failed at "
+            <> LBS.unpack afterFailedHandler
+            <> ".  Retutrning to "
+            <> branchOrCurrentShort
+            <> "."
+        )
+      let returnTo = if not (null branch) then branch else current
+      rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
+      throw ex ""
+
+  applySubsequentCommits io ex branch combined current currentShort
+
+prepareToSplit ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  Eff
+    es
+    (String, String, LBS.ByteString, String, String, LBS.ByteString, String)
+prepareToSplit io ex combinedProvided = do
+  let r s = fmap snd (effIO io (readProcessStdout (fromString s)))
+  let rThrow s = do
+        exitCode <- effIO io (runProcess (fromString s))
+        case exitCode of
+          failure@(ExitFailure {}) -> throw ex (show failure)
+          ExitSuccess -> pure ()
+  let rBind s = do
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
+        case exitCode of
+          failure@(ExitFailure {}) -> throw ex (show failure)
+          ExitSuccess -> pure (trimTrailingNewlines stdout)
+  let echoN = effIO io . putStr
+  let echo = effIO io . putStrLn
 
   branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
   current <- fmap LBS.unpack (rBind "git rev-parse HEAD")
@@ -92,38 +149,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
     then echoN ("branch " <> branch <> " (" <> currentShort <> "). ")
     else echoN (currentShort <> ". ")
 
-  echo "You wanted to split the commit"
-  echo ""
-  rThrow ("git show --no-patch --pretty=short " <> combined)
-  echo ""
-  echoN
-    ( "I'm now on "
-        <> LBS.unpack combinedShort
-        <> "'s parent ("
-        <> LBS.unpack combinedParentShort
-        <> "). "
-    )
-  echo ("I'm going to drop you into your chosen handler: " <> handler)
-  echoN "Please make any number of commits and then exit the handler with "
-  echo "exit code 0"
-
-  effIO io (runProcess (fromString handler)) >>= \case
-    ExitSuccess -> pure ()
-    ExitFailure {} -> do
-      afterFailedHandler <- rBind "git rev-parse --short HEAD"
-      rThrow "git reset --quiet --hard"
-      echo
-        ( "The handler failed at "
-            <> LBS.unpack afterFailedHandler
-            <> ".  Retutrning to "
-            <> branchOrCurrentShort
-            <> "."
-        )
-      let returnTo = if not (null branch) then branch else current
-      rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
-      throw ex ""
-
-  applySubsequentCommits io ex branch combined current currentShort
+  pure (branch, combined, combinedShort, current, currentShort, combinedParentShort, branchOrCurrentShort)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
