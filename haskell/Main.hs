@@ -247,7 +247,7 @@ applySubsequentCommits io ex branch combined current currentShort = do
   when (not (null branch)) $ do
     echoN "setting branch to history with split..."
     rThrow ("git push --quiet --force . HEAD:" <> branch)
-    rThrow ("git checkout -quiet " <> branch)
+    rThrow ("git checkout --quiet " <> branch)
     pure ()
 
   -- Check 3 e;quality, and we have it checked out
