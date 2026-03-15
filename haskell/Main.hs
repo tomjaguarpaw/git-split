@@ -16,8 +16,11 @@ import System.Process.Typed
 main :: IO ()
 main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   effIO io getArgs >>= \case
-    [handler, combinedProvided] -> interactive io ex handler combinedProvided
-    _ -> throw ex "Expected two arguments"
+    "interactive" : rest -> case rest of
+      [handler, combinedProvided] ->
+        interactive io ex handler combinedProvided
+      _ -> throw ex "interactive expected handler and commit to split"
+    _ -> throw ex "Expected interactive"
 
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
@@ -42,7 +45,8 @@ interactive io ex handler combinedProvided = do
 
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
-  echo "exit code 0"
+  echoN "exit code 0. To abort and return to where you were, exit the handler "
+  echoN "with a non-zero exit code."
 
   currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
   let branchOrCurrentShort =
