@@ -9,14 +9,22 @@ import Data.String
 import System.Environment
 import System.Process.Typed
 
+trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
+trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
+
 main :: IO ()
 main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   let r s = fmap snd (effIO io (readProcessStdout (fromString s)))
   let rThrow s = do
+        exitCode <- effIO io (runProcess (fromString s))
+        case exitCode of
+          failure@(ExitFailure {}) -> throw ex (show failure)
+          ExitSuccess -> pure ()
+  let rBind s = do
         (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure stdout
+          ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
 
@@ -26,8 +34,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       _ -> throw ex "Expected two arguments"
 
   branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
-  current <- fmap LBS.unpack (rThrow "git rev-parse HEAD")
-  currentShort <- fmap LBS.unpack (rThrow "git rev-parse --short HEAD")
+  current <- fmap LBS.unpack (rBind "git rev-parse HEAD")
+  currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
 
   let branchOrCurrentShort =
         if not (null branch)
@@ -37,8 +45,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
 
   let combinedProvided = arg2
   combined <-
-    fmap LBS.unpack (rThrow ("git rev-parse " <> combinedProvided))
-  combinedShort <- rThrow ("git rev-parse --short " <> combinedProvided)
+    fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
+  combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
   let handler = arg1
 
   let throwFailed s msg =
@@ -73,32 +81,33 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       ExitFailure {} -> pure ()
 
   combinedParent <-
-    rThrow ("git rev-parse " <> combined <> "^")
+    rBind ("git rev-parse " <> combined <> "^")
   combinedParentShort <-
-    rThrow ("git rev-parse --short " <> combined <> "^")
+    rBind ("git rev-parse --short " <> combined <> "^")
 
   echoN "checkout ..."
-  _ <- rThrow ("git checkout --quiet " <> combined)
+  rThrow ("git checkout --quiet " <> combined)
   echoN "reset..."
-  _ <- rThrow ("git reset --quiet " <> LBS.unpack combinedParent)
+  rThrow ("git reset --quiet " <> LBS.unpack combinedParent)
   echo "done"
 
   echoN "You were on "
   if not (null branch)
-    then echoN ("branch " <> branch <> " (" <> currentShort <> ")")
-    else echoN currentShort
+    then echoN ("branch " <> branch <> " (" <> currentShort <> "). ")
+    else echoN (currentShort <> ". ")
+
+  echo ("git show --no-patch --pretty=short " <> combined)
 
   echo "You wanted to split the commit"
   echo ""
-  _ <- rThrow ("git show --no-patch --pretty=short " <> combined)
-
+  rThrow ("git show --no-patch --pretty=short " <> combined)
   echo ""
   echoN
     ( "I'm now on "
         <> LBS.unpack combinedShort
         <> "'s parent ("
         <> LBS.unpack combinedParentShort
-        <> ")"
+        <> "). "
     )
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
@@ -107,8 +116,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   effIO io (runProcess (fromString handler)) >>= \case
     ExitSuccess -> pure ()
     ExitFailure {} -> do
-      afterFailedHandler <- rThrow "git rev-parse --short HEAD"
-      _ <- rThrow "git reset --quiet --hard"
+      afterFailedHandler <- rBind "git rev-parse --short HEAD"
+      rThrow "git reset --quiet --hard"
       echo
         ( "The handler failed at "
             <> LBS.unpack afterFailedHandler
@@ -121,23 +130,23 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
               then
                 branch
               else current
-      _ <- rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
+      rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
 
-  afterHandler <- rThrow "git rev-parse HEAD"
-  afterHandlerShort <- rThrow "git rev-parse --short HEAD"
+  afterHandler <- rBind "git rev-parse HEAD"
+  afterHandlerShort <- rBind "git rev-parse --short HEAD"
 
   echoN "reset..."
-  _ <- rThrow ("git reset --quiet --hard " <> LBS.unpack afterHandler)
+  rThrow ("git reset --quiet --hard " <> LBS.unpack afterHandler)
 
   echoN "checkout..."
-  _ <- rThrow ("git checkout --quiet --force " <> combined)
+  rThrow ("git checkout --quiet --force " <> combined)
 
   echoN "reset..."
-  _ <- rThrow ("git reset --quiet --force " <> combined)
+  rThrow ("git reset --quiet --force " <> combined)
 
-  combinedSubject <- rThrow ("git diff-tree -s --pretty=%s " <> combined)
-  combinedBody <- rThrow ("git diff-tree -s --pretty=%b " <> combined)
+  combinedSubject <- rBind ("git diff-tree -s --pretty=%s " <> combined)
+  combinedBody <- rBind ("git diff-tree -s --pretty=%b " <> combined)
 
   echoN "commit..."
   _ <-
@@ -149,7 +158,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
           <> "\""
       )
 
-  restOfCombined <- rThrow "git rev-parse HEAD"
+  restOfCombined <- rBind "git rev-parse HEAD"
   -- Check 2 equality
   echoN "checking equality..."
   _ <-
@@ -169,8 +178,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
           <> combined
       )
 
-  finished <- rThrow "git rev-parse HEAD"
-  finishedShort <- rThrow "git rev-parse --short HEAD"
+  finished <- rBind "git rev-parse HEAD"
+  finishedShort <- rBind "git rev-parse --short HEAD"
   let branchOrFinishedShort =
         if not (null branch)
           then branch
@@ -179,17 +188,17 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
 
   -- Check 3 equality
   echoN "checking equality..."
-  _ <- rThrow ("git diff --exit-code " <> LBS.unpack finished <> " " <> current)
+  rThrow ("git diff --exit-code " <> LBS.unpack finished <> " " <> current)
 
   when (not (null branch)) $ do
     echoN "setting branch to history with split..."
-    _ <- rThrow ("git push --quiet --force . HEAD:" <> branch)
-    _ <- rThrow ("git checkout -quiet " <> branch)
+    rThrow ("git push --quiet --force . HEAD:" <> branch)
+    rThrow ("git checkout -quiet " <> branch)
     pure ()
 
   -- Check 3 e;quality, and we have it checked out
   echoN "checking equality..."
-  _ <- rThrow ("git diff --exit-code HEAD " <> current)
+  rThrow ("git diff --exit-code HEAD " <> current)
 
   echo "done"
   echo ""
