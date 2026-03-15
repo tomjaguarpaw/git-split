@@ -52,15 +52,16 @@ interactive io ex handler combinedProvided = do
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
+  let short s = fmap LBS.unpack (rBind ("git rev-parse --short " <> s))
 
-  t@(branch, _, _) <- prepareToSplit io ex combinedProvided
+  t@(branch, current, _) <- prepareToSplit io ex combinedProvided
 
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
   echoN "exit code 0. To abort and return to where you were, exit the handler "
   echoN "with a non-zero exit code."
 
-  currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
+  currentShort <- short current
   let branchOrCurrentShort =
         if not (null branch)
           then
@@ -70,10 +71,10 @@ interactive io ex handler combinedProvided = do
   effIO io (runProcess (fromString handler)) >>= \case
     ExitSuccess -> pure ()
     ExitFailure {} -> do
-      afterFailedHandler <- rBind "git rev-parse --short HEAD"
+      afterFailedHandler <- short "HEAD"
       echo
         ( "The handler failed at "
-            <> LBS.unpack afterFailedHandler
+            <> afterFailedHandler
             <> ".  Returning to "
             <> branchOrCurrentShort
             <> "."
@@ -113,7 +114,7 @@ prepareToSplitCli io ex combinedProvided = do
     putStrLn ""
     putStrLn
       ( unwords
-          [ "    *",
+          [ "    ",
             "git-split",
             "applySubsequentCommits",
             quotesIfNull branch,
@@ -126,7 +127,7 @@ prepareToSplitCli io ex combinedProvided = do
     putStrLn ""
     putStrLn
       ( unwords
-          [ "    *",
+          [ "    ",
             "git-split",
             "restore",
             quotesIfNull branch,
@@ -158,10 +159,11 @@ prepareToSplit io ex combinedProvided = do
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
+  let short s = fmap LBS.unpack (rBind ("git rev-parse --short " <> s))
 
   branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
   current <- fmap LBS.unpack (rBind "git rev-parse HEAD")
-  currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
+  currentShort <- short current
 
   let branchOrCurrentShort =
         if not (null branch)
@@ -170,7 +172,7 @@ prepareToSplit io ex combinedProvided = do
           else currentShort
 
   combined <- fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
-  combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
+  combinedShort <- short combinedProvided
 
   let throwFailed s msg =
         effIO io (runProcess (fromString s)) >>= \case
@@ -204,13 +206,13 @@ prepareToSplit io ex combinedProvided = do
         throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
       ExitFailure {} -> pure ()
 
-  combinedParent <- rBind ("git rev-parse " <> combined <> "^")
-  combinedParentShort <- rBind ("git rev-parse --short " <> combined <> "^")
+  combinedParent <- fmap LBS.unpack (rBind ("git rev-parse " <> combined <> "^"))
+  combinedParentShort <- short combinedParent
 
   echoN "checkout..."
   rThrow ("git checkout --quiet " <> combined)
   echoN "reset..."
-  rThrow ("git reset --quiet " <> LBS.unpack combinedParent)
+  rThrow ("git reset --quiet " <> combinedParent)
   echo "done"
 
   echoN "You were on "
@@ -224,9 +226,9 @@ prepareToSplit io ex combinedProvided = do
   echo ""
   echoN
     ( "I'm now on "
-        <> LBS.unpack combinedShort
+        <> combinedShort
         <> "'s parent ("
-        <> LBS.unpack combinedParentShort
+        <> combinedParentShort
         <> "). "
     )
 
@@ -251,18 +253,19 @@ applySubsequentCommits io ex (branch, current, combined) = do
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
+  let short s = fmap LBS.unpack (rBind ("git rev-parse --short " <> s))
 
-  afterHandler <- rBind "git rev-parse HEAD"
-  afterHandlerShort <- rBind "git rev-parse --short HEAD"
+  afterHandler <- fmap LBS.unpack (rBind "git rev-parse HEAD")
+  afterHandlerShort <- short afterHandler
 
   echoN "reset..."
-  rThrow ("git reset --quiet --hard " <> LBS.unpack afterHandler)
+  rThrow ("git reset --quiet --hard " <> afterHandler)
 
   echoN "checkout..."
   rThrow ("git checkout --quiet --force " <> combined)
 
   echoN "reset..."
-  rThrow ("git reset --quiet --soft " <> LBS.unpack afterHandler)
+  rThrow ("git reset --quiet --soft " <> afterHandler)
 
   combinedSubject <- rBind ("git diff-tree -s --pretty=%s " <> combined)
   combinedBody <- rBind ("git diff-tree -s --pretty=%b " <> combined)
@@ -299,17 +302,14 @@ applySubsequentCommits io ex (branch, current, combined) = do
           <> current
       )
 
-  finished <- rBind "git rev-parse HEAD"
-  finishedShort <- rBind "git rev-parse --short HEAD"
+  finished <- fmap LBS.unpack (rBind "git rev-parse HEAD")
+  finishedShort <- short finished
   let branchOrFinishedShort =
-        if not (null branch)
-          then branch
-          else
-            LBS.unpack finishedShort
+        if not (null branch) then branch else finishedShort
 
   -- Check 3 equality
   echoN "checking equality..."
-  rThrow ("git diff --exit-code " <> LBS.unpack finished <> " " <> current)
+  rThrow ("git diff --exit-code " <> finished <> " " <> current)
 
   when (not (null branch)) $ do
     echoN "setting branch to history with split..."
@@ -331,13 +331,13 @@ applySubsequentCommits io ex (branch, current, combined) = do
     else
       echoN "Your HEAD is detached.  "
 
-  currentShort <- fmap LBS.unpack (rBind "git rev-parse --short HEAD")
+  currentShort <- short current
 
   echo
     ( "It was previously "
         <> currentShort
         <> ".  It is now "
-        <> LBS.unpack finishedShort
+        <> finishedShort
         <> "."
     )
   echo ""
@@ -347,7 +347,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echo ""
   echo
     ( "  $ git rebase --interactive "
-        <> LBS.unpack afterHandlerShort
+        <> afterHandlerShort
         <> " "
         <> branchOrFinishedShort
     )
