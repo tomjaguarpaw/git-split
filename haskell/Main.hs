@@ -229,7 +229,9 @@ prepareToSplit io ex combinedProvided = do
         <> combinedShort
         <> "'s parent ("
         <> combinedParentShort
-        <> "). "
+        <> ").  The changes of "
+        <> combinedShort
+        <> " are uncommitted in the repository."
     )
 
   pure (branch, current, combined)
