@@ -85,7 +85,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   combinedParentShort <-
     rBind ("git rev-parse --short " <> combined <> "^")
 
-  echoN "checkout ..."
+  echoN "checkout..."
   rThrow ("git checkout --quiet " <> combined)
   echoN "reset..."
   rThrow ("git reset --quiet " <> LBS.unpack combinedParent)
@@ -95,8 +95,6 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   if not (null branch)
     then echoN ("branch " <> branch <> " (" <> currentShort <> "). ")
     else echoN (currentShort <> ". ")
-
-  echo ("git show --no-patch --pretty=short " <> combined)
 
   echo "You wanted to split the commit"
   echo ""
@@ -143,7 +141,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   rThrow ("git checkout --quiet --force " <> combined)
 
   echoN "reset..."
-  rThrow ("git reset --quiet --force " <> combined)
+  rThrow ("git reset --quiet --soft " <> LBS.unpack afterHandler)
 
   combinedSubject <- rBind ("git diff-tree -s --pretty=%s " <> combined)
   combinedBody <- rBind ("git diff-tree -s --pretty=%b " <> combined)
@@ -176,6 +174,8 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
           <> LBS.unpack restOfCombined
           <> " "
           <> combined
+          <> " "
+          <> current
       )
 
   finished <- rBind "git rev-parse HEAD"
@@ -230,6 +230,6 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
     )
   echo ""
   echo "* If you don't want the split after all, "
-  echo "reset your branch to what it was before"
+  echoN "reset your branch to what it was before"
   echo ""
   echo ("  $ git reset --hard " <> currentShort)
