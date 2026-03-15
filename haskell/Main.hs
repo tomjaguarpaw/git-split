@@ -28,6 +28,10 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       [branch, current, combined] ->
         applySubsequentCommits io ex (branch, current, combined)
       _ -> throw ex "applySubsequentCommits expected three more arguments"
+    "restore" : rest -> case rest of
+      [branch, current, combined] ->
+        restore io ex (branch, current, combined)
+      _ -> throw ex "restore expected three more arguments"
     _ -> throw ex "Expected interactive"
 
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
@@ -75,6 +79,7 @@ interactive io ex handler combinedProvided = do
             <> "."
         )
       restore io ex t
+      throw ex ""
 
   applySubsequentCommits io ex t
 
@@ -83,7 +88,7 @@ restore ::
   IOE e1 ->
   Exception String e2 ->
   (String, String, string) ->
-  Eff es b
+  Eff es ()
 restore io ex (branch, current, _) = do
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString s))
@@ -93,7 +98,6 @@ restore io ex (branch, current, _) = do
   rThrow "git reset --quiet --hard"
   let returnTo = if not (null branch) then branch else current
   rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
-  throw ex ""
 
 prepareToSplitCli ::
   (e1 :> es, e2 :> es) =>
@@ -105,11 +109,26 @@ prepareToSplitCli io ex combinedProvided = do
   (branch, current, combined) <- prepareToSplit io ex combinedProvided
   let quotesIfNull s = if null s then "\"" <> s <> "\"" else s
   effIO io $ do
-    putStrLn "To continue run git split again with arguments:"
+    putStrLn "To continue run:"
     putStrLn ""
     putStrLn
       ( unwords
-          [ "applySubsequentCommits",
+          [ "    *",
+            "git-split",
+            "applySubsequentCommits",
+            quotesIfNull branch,
+            quotesIfNull current,
+            quotesIfNull combined
+          ]
+      )
+    putStrLn ""
+    putStrLn "To abort run:"
+    putStrLn ""
+    putStrLn
+      ( unwords
+          [ "    *",
+            "git-split",
+            "restore",
             quotesIfNull branch,
             quotesIfNull current,
             quotesIfNull combined
