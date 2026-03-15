@@ -20,6 +20,14 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       [handler, combinedProvided] ->
         interactive io ex handler combinedProvided
       _ -> throw ex "interactive expected handler and commit to split"
+    "prepareToSplit" : rest -> case rest of
+      [combinedProvided] ->
+        prepareToSplitCli io ex combinedProvided
+      _ -> throw ex "prepareToSplit expected commit to split"
+    "applySubsequentCommits" : rest -> case rest of
+      [branch, current, combined] ->
+        applySubsequentCommits io ex (branch, current, combined)
+      _ -> throw ex "applySubsequentCommits expected three more arguments"
     _ -> throw ex "Expected interactive"
 
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
@@ -86,6 +94,27 @@ restore io ex (branch, current, _) = do
   let returnTo = if not (null branch) then branch else current
   rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
   throw ex ""
+
+prepareToSplitCli ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  Eff es ()
+prepareToSplitCli io ex combinedProvided = do
+  (branch, current, combined) <- prepareToSplit io ex combinedProvided
+  let quotesIfNull s = if null s then "\"" <> s <> "\"" else s
+  effIO io $ do
+    putStrLn "To continue run git split again with arguments:"
+    putStrLn ""
+    putStrLn
+      ( unwords
+          [ "applySubsequentCommits",
+            quotesIfNull branch,
+            quotesIfNull current,
+            quotesIfNull combined
+          ]
+      )
 
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
