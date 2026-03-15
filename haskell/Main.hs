@@ -28,13 +28,10 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
 
-  (arg1, arg2) <-
+  (handler, combinedProvided) <-
     effIO io getArgs >>= \case
       [arg1, arg2] -> pure (arg1, arg2)
       _ -> throw ex "Expected two arguments"
-
-  let handler = arg1
-  let combinedProvided = arg2
 
   branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
   current <- fmap LBS.unpack (rBind "git rev-parse HEAD")
