@@ -128,7 +128,8 @@ prepareToSplit io ex combinedProvided = do
         )
     )
     >>= \case
-      ExitSuccess -> throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
+      ExitSuccess ->
+        throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
       ExitFailure {} -> pure ()
 
   combinedParent <- rBind ("git rev-parse " <> combined <> "^")
