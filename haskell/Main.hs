@@ -34,13 +34,13 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
 
   ( branch,
     combined,
-    combinedShort,
     current,
     currentShort,
     combinedParentShort,
     branchOrCurrentShort
     ) <-
     prepareToSplit io ex combinedProvided
+  combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
 
   echo "You wanted to split the commit"
   echo ""
@@ -65,7 +65,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       echo
         ( "The handler failed at "
             <> LBS.unpack afterFailedHandler
-            <> ".  Retutrning to "
+            <> ".  Returning to "
             <> branchOrCurrentShort
             <> "."
         )
@@ -82,7 +82,7 @@ prepareToSplit ::
   String ->
   Eff
     es
-    (String, String, LBS.ByteString, String, String, LBS.ByteString, String)
+    (String, String, String, String, LBS.ByteString, String)
 prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
@@ -113,7 +113,6 @@ prepareToSplit io ex combinedProvided = do
 
   combined <-
     fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
-  combinedShort <- rBind ("git rev-parse --short " <> combinedProvided)
 
   let throwFailed s msg =
         effIO io (runProcess (fromString s)) >>= \case
@@ -160,7 +159,7 @@ prepareToSplit io ex combinedProvided = do
     then echoN ("branch " <> branch <> " (" <> currentShort <> "). ")
     else echoN (currentShort <> ". ")
 
-  pure (branch, combined, combinedShort, current, currentShort, combinedParentShort, branchOrCurrentShort)
+  pure (branch, combined, current, currentShort, combinedParentShort, branchOrCurrentShort)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
