@@ -121,18 +121,14 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
             <> branchOrCurrentShort
             <> "."
         )
-      let returnTo =
-            if not (null branch)
-              then
-                branch
-              else current
+      let returnTo = if not (null branch) then branch else current
       rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
 
   applySubsequentCommits io ex branch combined current currentShort
 
 applySubsequentCommits ::
-  (e1 :> es , e2 :> es) =>
+  (e1 :> es, e2 :> es) =>
   IOE e1 ->
   Exception String e2 ->
   String ->
