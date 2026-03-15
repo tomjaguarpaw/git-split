@@ -129,6 +129,31 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
 
+  applySubsequentCommits io ex branch combined current currentShort
+
+applySubsequentCommits ::
+  (e1 :> es , e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  String ->
+  String ->
+  Eff es ()
+applySubsequentCommits io ex branch combined current currentShort = do
+  let rThrow s = do
+        exitCode <- effIO io (runProcess (fromString s))
+        case exitCode of
+          failure@(ExitFailure {}) -> throw ex (show failure)
+          ExitSuccess -> pure ()
+  let rBind s = do
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
+        case exitCode of
+          failure@(ExitFailure {}) -> throw ex (show failure)
+          ExitSuccess -> pure (trimTrailingNewlines stdout)
+  let echoN = effIO io . putStr
+  let echo = effIO io . putStrLn
+
   afterHandler <- rBind "git rev-parse HEAD"
   afterHandlerShort <- rBind "git rev-parse --short HEAD"
 
