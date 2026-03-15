@@ -283,7 +283,7 @@ applySubsequentCommits io ex branch combined current currentShort = do
         <> branchOrFinishedShort
     )
   echo ""
-  echo "* If you don't want the split after all, "
-  echoN "reset your branch to what it was before"
+  echoN "* If you don't want the split after all, "
+  echo "reset your branch to what it was before"
   echo ""
   echo ("  $ git reset --hard " <> currentShort)
