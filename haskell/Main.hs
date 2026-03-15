@@ -14,11 +14,6 @@ trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
 
 main :: IO ()
 main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
-  let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString s))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure ()
   let rBind s = do
         (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
         case exitCode of
@@ -32,7 +27,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       [arg1, arg2] -> pure (arg1, arg2)
       _ -> throw ex "Expected two arguments"
 
-  t@(branch, current, _) <- prepareToSplit io ex combinedProvided
+  t@(branch, _, _) <- prepareToSplit io ex combinedProvided
 
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
@@ -56,12 +51,26 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
             <> branchOrCurrentShort
             <> "."
         )
-      rThrow "git reset --quiet --hard"
-      let returnTo = if not (null branch) then branch else current
-      rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
-      throw ex ""
+      restore io ex t
 
   applySubsequentCommits io ex t
+
+restore ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  (String, String, string) ->
+  Eff es b
+restore io ex (branch, current, _) = do
+  let rThrow s = do
+        exitCode <- effIO io (runProcess (fromString s))
+        case exitCode of
+          failure@(ExitFailure {}) -> throw ex (show failure)
+          ExitSuccess -> pure ()
+  rThrow "git reset --quiet --hard"
+  let returnTo = if not (null branch) then branch else current
+  rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
+  throw ex ""
 
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
