@@ -84,7 +84,10 @@ prepareToSplit ::
     es
     (String, String, LBS.ByteString, String, String, LBS.ByteString, String)
 prepareToSplit io ex combinedProvided = do
-  let r s = fmap snd (effIO io (readProcessStdout (fromString s)))
+  let r s =
+        fmap
+          (trimTrailingNewlines . snd)
+          (effIO io (readProcessStdout (fromString s)))
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString s))
         case exitCode of
