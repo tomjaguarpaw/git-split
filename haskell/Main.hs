@@ -49,7 +49,6 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
     ExitSuccess -> pure ()
     ExitFailure {} -> do
       afterFailedHandler <- rBind "git rev-parse --short HEAD"
-      rThrow "git reset --quiet --hard"
       echo
         ( "The handler failed at "
             <> LBS.unpack afterFailedHandler
@@ -57,6 +56,7 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
             <> branchOrCurrentShort
             <> "."
         )
+      rThrow "git reset --quiet --hard"
       let returnTo = if not (null branch) then branch else current
       rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
       throw ex ""
