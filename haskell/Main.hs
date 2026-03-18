@@ -317,7 +317,6 @@ applySubsequentCommits io ex (branch, current, combined) = do
     echoN "setting branch to history with split..."
     rThrow ("git push --quiet --force . HEAD:" <> branch)
     rThrow ("git checkout --quiet " <> branch)
-    pure ()
 
   -- Check 3 e;quality, and we have it checked out
   echoN "checking equality..."
