@@ -59,7 +59,7 @@ interactive io ex handler combinedProvided = do
   echo ("I'm going to drop you into your chosen handler: " <> handler)
   echoN "Please make any number of commits and then exit the handler with "
   echoN "exit code 0. To abort and return to where you were, exit the handler "
-  echoN "with a non-zero exit code."
+  echo "with a non-zero exit code."
 
   currentShort <- short current
   let branchOrCurrentShort =
@@ -231,7 +231,7 @@ prepareToSplit io ex combinedProvided = do
         <> combinedParentShort
         <> ").  The changes of "
         <> combinedShort
-        <> " are uncommitted in the repository."
+        <> " are uncommitted in the repository. "
     )
 
   pure (branch, current, combined)
