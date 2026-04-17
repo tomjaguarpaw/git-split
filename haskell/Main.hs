@@ -244,7 +244,7 @@ applySubsequentCommits ::
   Eff es ()
 applySubsequentCommits io ex (branch, current, combined) = do
   let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString s))
+        exitCode <- effIO io (runProcess (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
@@ -261,13 +261,13 @@ applySubsequentCommits io ex (branch, current, combined) = do
   afterHandlerShort <- short afterHandler
 
   echoN "reset..."
-  rThrow ("git reset --quiet --hard " <> afterHandler)
+  rThrow ["git", "reset", "--quiet", "--hard", afterHandler]
 
   echoN "checkout..."
-  rThrow ("git checkout --quiet --force " <> combined)
+  rThrow ["git", "checkout", "--quiet", "--force", combined]
 
   echoN "reset..."
-  rThrow ("git reset --quiet --soft " <> afterHandler)
+  rThrow ["git", "reset", "--quiet", "--soft", afterHandler]
 
   combinedSubject <- rBind ("git diff-tree -s --pretty=%s " <> combined)
   combinedBody <- rBind ("git diff-tree -s --pretty=%b " <> combined)
@@ -275,34 +275,39 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echoN "commit..."
   _ <-
     rThrow
-      ( "git commit --allow-empty --quiet -m \""
-          <> LBS.unpack combinedSubject
-          <> "\" -m \""
-          <> LBS.unpack combinedBody
-          <> "\""
-      )
+      [ "git",
+        "commit",
+        "--allow-empty",
+        "--quiet",
+        "-m ",
+        "\"" <> LBS.unpack combinedSubject <> "\"",
+        "-m",
+        "\"" <> LBS.unpack combinedBody <> "\""
+      ]
 
   restOfCombined <- rBind "git rev-parse HEAD"
   -- Check 2 equality
   echoN "checking equality..."
   _ <-
     rThrow
-      ( "git diff --exit-code "
-          <> LBS.unpack restOfCombined
-          <> " "
-          <> combined
-      )
+      [ "git",
+        "diff",
+        "--exit-code",
+        LBS.unpack restOfCombined,
+        combined
+      ]
 
   echoN "rebase..."
   _ <-
     rThrow
-      ( "git rebase --quiet --onto "
-          <> LBS.unpack restOfCombined
-          <> " "
-          <> combined
-          <> " "
-          <> current
-      )
+      [ "git",
+        "rebase",
+        "--quiet",
+        "--onto",
+        LBS.unpack restOfCombined,
+        combined,
+        current
+      ]
 
   finished <- fmap LBS.unpack (rBind "git rev-parse HEAD")
   finishedShort <- short finished
@@ -311,16 +316,16 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
   -- Check 3 equality
   echoN "checking equality..."
-  rThrow ("git diff --exit-code " <> finished <> " " <> current)
+  rThrow ["git", "diff", "--exit-code", finished, current]
 
   when (not (null branch)) $ do
     echoN "setting branch to history with split..."
-    rThrow ("git push --quiet --force . HEAD:" <> branch)
-    rThrow ("git checkout --quiet " <> branch)
+    rThrow ["git", "push", "--quiet", "--force", ".", "HEAD:" <> branch]
+    rThrow ["git", "checkout", "--quiet", branch]
 
   -- Check 3 e;quality, and we have it checked out
   echoN "checking equality..."
-  rThrow ("git diff --exit-code HEAD " <> current)
+  rThrow ["git", "diff", "--exit-code", "HEAD", current]
 
   echo "done"
   echo ""
