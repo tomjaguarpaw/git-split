@@ -249,15 +249,15 @@ applySubsequentCommits io ex (branch, current, combined) = do
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
   let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s)) -- this one si OK
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind ("git rev-parse --short " <> s))
+  let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
 
-  afterHandler <- fmap LBS.unpack (rBind "git rev-parse HEAD")
+  afterHandler <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
   afterHandlerShort <- short afterHandler
 
   echoN "reset..."
@@ -269,8 +269,8 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echoN "reset..."
   rThrow ["git", "reset", "--quiet", "--soft", afterHandler]
 
-  combinedSubject <- rBind ("git diff-tree -s --pretty=%s " <> combined)
-  combinedBody <- rBind ("git diff-tree -s --pretty=%b " <> combined)
+  combinedSubject <- rBind ["git", "diff-tree", "-s", "--pretty=%s", combined]
+  combinedBody <- rBind ["git", "diff-tree", "-s", "--pretty=%b", combined]
 
   echoN "commit..."
   _ <-
@@ -285,7 +285,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
         "\"" <> LBS.unpack combinedBody <> "\""
       ]
 
-  restOfCombined <- rBind "git rev-parse HEAD"
+  restOfCombined <- rBind ["git", "rev-parse", "HEAD"]
   -- Check 2 equality
   echoN "checking equality..."
   _ <-
@@ -309,7 +309,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
         current
       ]
 
-  finished <- fmap LBS.unpack (rBind "git rev-parse HEAD")
+  finished <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
   finishedShort <- short finished
   let branchOrFinishedShort =
         if not (null branch) then branch else finishedShort
