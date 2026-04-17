@@ -191,24 +191,20 @@ prepareToSplit io ex combinedProvided = do
   combined <- fmap LBS.unpack (rBind ["git", "rev-parse", combinedProvided])
   combinedShort <- short combinedProvided
 
-  let throwFailed s msg = do
-        exitCode <- effIO io (runProcess (fromString s))
-        case exitCode of
-          ExitFailure {} -> throw ex msg
-          ExitSuccess -> pure ()
+  let throwFailed s msg = rThrowExitCode (const msg) io ex s
 
   throwFailed
-    ("git merge-base --is-ancestor " <> combinedProvided <> " " <> current)
+    ["git", "merge-base", "--is-ancestor", combinedProvided, current]
     (combinedProvided <> " is not an ancestor of " <> branchOrCurrentShort)
 
   throwFailed
-    "git diff --quiet"
+    ["git", "diff", "--quiet"]
     ( "The repo has uncommitted changes.  "
         <> "Stash, commit or reset them and then try again."
     )
 
   throwFailed
-    "git diff --cached --quiet"
+    ["git", "diff", "--cached", "--quiet"]
     ( "The repo has changes in the staging area.  "
         <> "Stash, commit or reset them and then try again."
     )
