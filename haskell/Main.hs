@@ -219,10 +219,11 @@ prepareToSplit io ex combinedProvided = do
   do
     let s = ["git", "rev-parse", "--verify", "--quiet", combined <> "^2"]
     exitCode <- effIO io (runProcess (fromString (unwords s)))
-    case exitCode of
-      ExitSuccess ->
-        throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
-      ExitFailure {} -> pure ()
+    let isMerge = case exitCode of
+          ExitSuccess -> True
+          ExitFailure {} -> False
+    when isMerge $ do
+      throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
 
   combinedParent <- fmap LBS.unpack (rBind "git" ["rev-parse", combined <> "^"])
   combinedParentShort <- short combinedParent
