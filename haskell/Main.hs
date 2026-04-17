@@ -38,10 +38,11 @@ rBindIO ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
   Exception String e2 ->
+  String ->
   [String] ->
   Eff es LBS.ByteString
-rBindIO io ex s = do
-  (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
+rBindIO io ex f s = do
+  (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords (f : s))))
   case exitCode of
     failure@(ExitFailure {}) -> throw ex (show failure)
     ExitSuccess -> pure (trimTrailingNewlines stdout)
@@ -81,7 +82,7 @@ interactive io ex handler combinedProvided = do
   let rBind = rBindIO io ex
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
+  let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
   t@(branch, current, _) <- prepareToSplit io ex combinedProvided
 
@@ -176,10 +177,10 @@ prepareToSplit io ex combinedProvided = do
   let rBind = rBindIO io ex
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
+  let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
   branch <- fmap LBS.unpack (r ["git", "symbolic-ref", "--quiet", "--short", "HEAD"])
-  current <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
+  current <- fmap LBS.unpack (rBind "git" ["rev-parse", "HEAD"])
   currentShort <- short current
 
   let branchOrCurrentShort =
@@ -188,23 +189,26 @@ prepareToSplit io ex combinedProvided = do
             branch
           else currentShort
 
-  combined <- fmap LBS.unpack (rBind ["git", "rev-parse", combinedProvided])
+  combined <- fmap LBS.unpack (rBind "git" ["rev-parse", combinedProvided])
   combinedShort <- short combinedProvided
 
-  let throwFailed s msg = rThrowExitCode (const msg) io ex s
+  let throwFailed f s msg = rThrowExitCode (const msg) io ex (f : s)
 
   throwFailed
-    ["git", "merge-base", "--is-ancestor", combinedProvided, current]
+    "git"
+    ["merge-base", "--is-ancestor", combinedProvided, current]
     (combinedProvided <> " is not an ancestor of " <> branchOrCurrentShort)
 
   throwFailed
-    ["git", "diff", "--quiet"]
+    "git"
+    ["diff", "--quiet"]
     ( "The repo has uncommitted changes.  "
         <> "Stash, commit or reset them and then try again."
     )
 
   throwFailed
-    ["git", "diff", "--cached", "--quiet"]
+    "git"
+    ["diff", "--cached", "--quiet"]
     ( "The repo has changes in the staging area.  "
         <> "Stash, commit or reset them and then try again."
     )
@@ -217,7 +221,7 @@ prepareToSplit io ex combinedProvided = do
         throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
       ExitFailure {} -> pure ()
 
-  combinedParent <- fmap LBS.unpack (rBind ["git", "rev-parse", combined <> "^"])
+  combinedParent <- fmap LBS.unpack (rBind "git" ["rev-parse", combined <> "^"])
   combinedParentShort <- short combinedParent
 
   echoN "checkout..."
@@ -258,9 +262,9 @@ applySubsequentCommits io ex (branch, current, combined) = do
   let rBind = rBindIO io ex
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
+  let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
-  afterHandler <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
+  afterHandler <- fmap LBS.unpack (rBind "git" ["rev-parse", "HEAD"])
   afterHandlerShort <- short afterHandler
 
   echoN "reset..."
@@ -272,8 +276,8 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echoN "reset..."
   rThrow ["git", "reset", "--quiet", "--soft", afterHandler]
 
-  combinedSubject <- rBind ["git", "diff-tree", "-s", "--pretty=%s", combined]
-  combinedBody <- rBind ["git", "diff-tree", "-s", "--pretty=%b", combined]
+  combinedSubject <- rBind "git" ["diff-tree", "-s", "--pretty=%s", combined]
+  combinedBody <- rBind "git" ["diff-tree", "-s", "--pretty=%b", combined]
 
   echoN "commit..."
   _ <-
@@ -288,7 +292,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
         "\"" <> LBS.unpack combinedBody <> "\""
       ]
 
-  restOfCombined <- rBind ["git", "rev-parse", "HEAD"]
+  restOfCombined <- rBind "git" ["rev-parse", "HEAD"]
   -- Check 2 equality
   echoN "checking equality..."
   _ <-
@@ -312,7 +316,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
         current
       ]
 
-  finished <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
+  finished <- fmap LBS.unpack (rBind "git" ["rev-parse", "HEAD"])
   finishedShort <- short finished
   let branchOrFinishedShort =
         if not (null branch) then branch else finishedShort
