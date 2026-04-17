@@ -182,8 +182,9 @@ prepareToSplit io ex combinedProvided = do
   combined <- fmap LBS.unpack (rBind ["git", "rev-parse", combinedProvided])
   combinedShort <- short combinedProvided
 
-  let throwFailed s msg =
-        effIO io (runProcess (fromString s)) >>= \case
+  let throwFailed s msg = do
+        exitCode <- effIO io (runProcess (fromString s))
+        case exitCode of
           ExitFailure {} -> throw ex msg
           ExitSuccess -> pure ()
 
