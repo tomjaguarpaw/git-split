@@ -92,13 +92,13 @@ restore ::
   Eff es ()
 restore io ex (branch, current, _) = do
   let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString s))
+        exitCode <- effIO io (runProcess (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
-  rThrow "git reset --quiet --hard"
+  rThrow ["git", "reset", "--quiet", "--hard"]
   let returnTo = if not (null branch) then branch else current
-  rThrow ("git checkout --force --quiet \"" <> returnTo <> "\"")
+  rThrow ["git", "checkout", "--force", "--quiet", returnTo]
 
 prepareToSplitCli ::
   (e1 :> es, e2 :> es) =>
