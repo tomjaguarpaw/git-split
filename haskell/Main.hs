@@ -146,7 +146,7 @@ prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
           (trimTrailingNewlines . snd)
-          (effIO io (readProcessStdout (fromString s))) -- this one is ok
+          (effIO io (readProcessStdout (fromString (unwords s))))
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString (unwords s)))
         case exitCode of
@@ -161,7 +161,7 @@ prepareToSplit io ex combinedProvided = do
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
 
-  branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
+  branch <- fmap LBS.unpack (r ["git", "symbolic-ref", "--quiet", "--short", "HEAD"])
   current <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
   currentShort <- short current
 
