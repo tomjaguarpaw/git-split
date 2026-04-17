@@ -46,13 +46,13 @@ interactive ::
   Eff es ()
 interactive io ex handler combinedProvided = do
   let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind ("git rev-parse --short " <> s))
+  let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
 
   t@(branch, current, _) <- prepareToSplit io ex combinedProvided
 
