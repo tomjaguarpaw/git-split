@@ -71,6 +71,14 @@ rThrowIO ::
   Eff es ()
 rThrowIO = rThrowExitCode show
 
+isMerge :: e :> es => IOE e -> String -> Eff es Bool
+isMerge io commit = do
+  let s = ["git", "rev-parse", "--verify", "--quiet", commit <> "^2"]
+  exitCode <- effIO io (runProcess (fromString (unwords s)))
+  pure $ case exitCode of
+    ExitSuccess -> True
+    ExitFailure {} -> False
+
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
 
@@ -217,12 +225,8 @@ prepareToSplit io ex combinedProvided = do
     )
 
   do
-    let s = ["git", "rev-parse", "--verify", "--quiet", combined <> "^2"]
-    exitCode <- effIO io (runProcess (fromString (unwords s)))
-    let isMerge = case exitCode of
-          ExitSuccess -> True
-          ExitFailure {} -> False
-    when isMerge $ do
+    combinedIsMerge <- isMerge io combinedProvided
+    when combinedIsMerge $ do
       throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
 
   combinedParent <- fmap LBS.unpack (rBind "git" ["rev-parse", combined <> "^"])
