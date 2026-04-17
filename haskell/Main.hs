@@ -148,7 +148,7 @@ prepareToSplit io ex combinedProvided = do
           (trimTrailingNewlines . snd)
           (effIO io (readProcessStdout (fromString s)))
   let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString s))
+        exitCode <- effIO io (runProcess (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
@@ -210,9 +210,9 @@ prepareToSplit io ex combinedProvided = do
   combinedParentShort <- short combinedParent
 
   echoN "checkout..."
-  rThrow ("git checkout --quiet " <> combined)
+  rThrow ["git", "checkout", "--quiet", combined]
   echoN "reset..."
-  rThrow ("git reset --quiet " <> combinedParent)
+  rThrow ["git", "reset", "--quiet", combinedParent]
   echo "done"
 
   echoN "You were on "
@@ -222,7 +222,7 @@ prepareToSplit io ex combinedProvided = do
 
   echo "You wanted to split the commit"
   echo ""
-  rThrow ("git show --no-patch --pretty=short " <> combined)
+  rThrow ["git", "show", "--no-patch", "--pretty=short", combined]
   echo ""
   echoN
     ( "I'm now on "
