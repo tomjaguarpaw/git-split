@@ -46,17 +46,26 @@ rBindIO io ex s = do
     failure@(ExitFailure {}) -> throw ex (show failure)
     ExitSuccess -> pure (trimTrailingNewlines stdout)
 
+rThrowExitCode ::
+  (e1 :> es, e2 :> es) =>
+  (ExitCode -> ex) ->
+  IOE e1 ->
+  Exception ex e2 ->
+  [String] ->
+  Eff es ()
+rThrowExitCode k io ex s = do
+  exitCode <- effIO io (runProcess (fromString (unwords s)))
+  case exitCode of
+    failure@(ExitFailure {}) -> throw ex (k failure)
+    ExitSuccess -> pure ()
+
 rThrowIO ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
   Exception String e2 ->
   [String] ->
   Eff es ()
-rThrowIO io ex s = do
-  exitCode <- effIO io (runProcess (fromString (unwords s)))
-  case exitCode of
-    failure@(ExitFailure {}) -> throw ex (show failure)
-    ExitSuccess -> pure ()
+rThrowIO = rThrowExitCode show
 
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
