@@ -52,10 +52,11 @@ rThrowExitCode ::
   (ExitCode -> ex) ->
   IOE e1 ->
   Exception ex e2 ->
+  String ->
   [String] ->
   Eff es ()
-rThrowExitCode k io ex s = do
-  exitCode <- effIO io (runProcess (fromString (unwords s)))
+rThrowExitCode k io ex f s = do
+  exitCode <- effIO io (runProcess (fromString (unwords (f : s))))
   case exitCode of
     failure@(ExitFailure {}) -> throw ex (k failure)
     ExitSuccess -> pure ()
@@ -64,6 +65,7 @@ rThrowIO ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
   Exception String e2 ->
+  String ->
   [String] ->
   Eff es ()
 rThrowIO = rThrowExitCode show
@@ -122,9 +124,9 @@ restore ::
   Eff es ()
 restore io ex (branch, current, _) = do
   let rThrow = rThrowIO io ex
-  rThrow ["git", "reset", "--quiet", "--hard"]
+  rThrow "git" ["reset", "--quiet", "--hard"]
   let returnTo = if not (null branch) then branch else current
-  rThrow ["git", "checkout", "--force", "--quiet", returnTo]
+  rThrow "git" ["checkout", "--force", "--quiet", returnTo]
 
 prepareToSplitCli ::
   (e1 :> es, e2 :> es) =>
@@ -192,7 +194,7 @@ prepareToSplit io ex combinedProvided = do
   combined <- fmap LBS.unpack (rBind "git" ["rev-parse", combinedProvided])
   combinedShort <- short combinedProvided
 
-  let throwFailed f s msg = rThrowExitCode (const msg) io ex (f : s)
+  let throwFailed f s msg = rThrowExitCode (const msg) io ex f s
 
   throwFailed
     "git"
@@ -225,9 +227,9 @@ prepareToSplit io ex combinedProvided = do
   combinedParentShort <- short combinedParent
 
   echoN "checkout..."
-  rThrow ["git", "checkout", "--quiet", combined]
+  rThrow "git" ["checkout", "--quiet", combined]
   echoN "reset..."
-  rThrow ["git", "reset", "--quiet", combinedParent]
+  rThrow "git" ["reset", "--quiet", combinedParent]
   echo "done"
 
   echoN "You were on "
@@ -237,7 +239,7 @@ prepareToSplit io ex combinedProvided = do
 
   echo "You wanted to split the commit"
   echo ""
-  rThrow ["git", "show", "--no-patch", "--pretty=short", combined]
+  rThrow "git" ["show", "--no-patch", "--pretty=short", combined]
   echo ""
   echoN
     ( "I'm now on "
@@ -268,13 +270,13 @@ applySubsequentCommits io ex (branch, current, combined) = do
   afterHandlerShort <- short afterHandler
 
   echoN "reset..."
-  rThrow ["git", "reset", "--quiet", "--hard", afterHandler]
+  rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
   echoN "checkout..."
-  rThrow ["git", "checkout", "--quiet", "--force", combined]
+  rThrow "git" ["checkout", "--quiet", "--force", combined]
 
   echoN "reset..."
-  rThrow ["git", "reset", "--quiet", "--soft", afterHandler]
+  rThrow "git" ["reset", "--quiet", "--soft", afterHandler]
 
   combinedSubject <- rBind "git" ["diff-tree", "-s", "--pretty=%s", combined]
   combinedBody <- rBind "git" ["diff-tree", "-s", "--pretty=%b", combined]
@@ -282,8 +284,8 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echoN "commit..."
   _ <-
     rThrow
-      [ "git",
-        "commit",
+      "git"
+      [ "commit",
         "--allow-empty",
         "--quiet",
         "-m ",
@@ -297,8 +299,8 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echoN "checking equality..."
   _ <-
     rThrow
-      [ "git",
-        "diff",
+      "git"
+      [ "diff",
         "--exit-code",
         LBS.unpack restOfCombined,
         combined
@@ -307,8 +309,8 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echoN "rebase..."
   _ <-
     rThrow
-      [ "git",
-        "rebase",
+      "git"
+      [ "rebase",
         "--quiet",
         "--onto",
         LBS.unpack restOfCombined,
@@ -323,16 +325,16 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
   -- Check 3 equality
   echoN "checking equality..."
-  rThrow ["git", "diff", "--exit-code", finished, current]
+  rThrow "git" ["diff", "--exit-code", finished, current]
 
   when (not (null branch)) $ do
     echoN "setting branch to history with split..."
-    rThrow ["git", "push", "--quiet", "--force", ".", "HEAD:" <> branch]
-    rThrow ["git", "checkout", "--quiet", branch]
+    rThrow "git" ["push", "--quiet", "--force", ".", "HEAD:" <> branch]
+    rThrow "git" ["checkout", "--quiet", branch]
 
   -- Check 3 e;quality, and we have it checked out
   echoN "checking equality..."
-  rThrow ["git", "diff", "--exit-code", "HEAD", current]
+  rThrow "git" ["diff", "--exit-code", "HEAD", current]
 
   echo "done"
   echo ""
