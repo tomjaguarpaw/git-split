@@ -153,16 +153,16 @@ prepareToSplit io ex combinedProvided = do
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
   let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))  -- this one is OK
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure (trimTrailingNewlines stdout)
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind ("git rev-parse --short " <> s))
+  let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
 
   branch <- fmap LBS.unpack (r "git symbolic-ref --quiet --short HEAD")
-  current <- fmap LBS.unpack (rBind "git rev-parse HEAD")
+  current <- fmap LBS.unpack (rBind ["git", "rev-parse", "HEAD"])
   currentShort <- short current
 
   let branchOrCurrentShort =
@@ -171,7 +171,7 @@ prepareToSplit io ex combinedProvided = do
             branch
           else currentShort
 
-  combined <- fmap LBS.unpack (rBind ("git rev-parse " <> combinedProvided))
+  combined <- fmap LBS.unpack (rBind ["git", "rev-parse", combinedProvided])
   combinedShort <- short combinedProvided
 
   let throwFailed s msg =
@@ -206,7 +206,7 @@ prepareToSplit io ex combinedProvided = do
         throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
       ExitFailure {} -> pure ()
 
-  combinedParent <- fmap LBS.unpack (rBind ("git rev-parse " <> combined <> "^"))
+  combinedParent <- fmap LBS.unpack (rBind ["git", "rev-parse", combined <> "^"])
   combinedParentShort <- short combinedParent
 
   echoN "checkout..."
