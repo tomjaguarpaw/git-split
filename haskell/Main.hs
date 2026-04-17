@@ -209,13 +209,10 @@ prepareToSplit io ex combinedProvided = do
         <> "Stash, commit or reset them and then try again."
     )
 
-  effIO
-    io
-    ( runProcess
-        ( fromString ("git rev-parse --verify --quiet " <> combined <> "^2")
-        )
-    )
-    >>= \case
+  do
+    let s = ["git", "rev-parse", "--verify", "--quiet", combined <> "^2"]
+    exitCode <- effIO io (runProcess (fromString (unwords s)))
+    case exitCode of
       ExitSuccess ->
         throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
       ExitFailure {} -> pure ()
