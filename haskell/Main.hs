@@ -146,14 +146,14 @@ prepareToSplit io ex combinedProvided = do
   let r s =
         fmap
           (trimTrailingNewlines . snd)
-          (effIO io (readProcessStdout (fromString s)))
+          (effIO io (readProcessStdout (fromString s))) -- this one is ok
   let rThrow s = do
         exitCode <- effIO io (runProcess (fromString (unwords s)))
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
   let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))  -- this one is OK
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure (trimTrailingNewlines stdout)
@@ -249,7 +249,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure ()
   let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s))
+        (exitCode, stdout) <- effIO io (readProcessStdout (fromString s)) -- this one si OK
         case exitCode of
           failure@(ExitFailure {}) -> throw ex (show failure)
           ExitSuccess -> pure (trimTrailingNewlines stdout)
