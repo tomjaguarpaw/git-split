@@ -34,6 +34,30 @@ main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
       _ -> throw ex "restore expected three more arguments"
     _ -> throw ex "Expected interactive"
 
+rBindIO ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  [String] ->
+  Eff es LBS.ByteString
+rBindIO io ex s = do
+  (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
+  case exitCode of
+    failure@(ExitFailure {}) -> throw ex (show failure)
+    ExitSuccess -> pure (trimTrailingNewlines stdout)
+
+rThrowIO ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  [String] ->
+  Eff es ()
+rThrowIO io ex s = do
+  exitCode <- effIO io (runProcess (fromString (unwords s)))
+  case exitCode of
+    failure@(ExitFailure {}) -> throw ex (show failure)
+    ExitSuccess -> pure ()
+
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
 
@@ -45,11 +69,7 @@ interactive ::
   String ->
   Eff es ()
 interactive io ex handler combinedProvided = do
-  let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure (trimTrailingNewlines stdout)
+  let rBind = rBindIO io ex
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
@@ -91,11 +111,7 @@ restore ::
   (String, String, string) ->
   Eff es ()
 restore io ex (branch, current, _) = do
-  let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString (unwords s)))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure ()
+  let rThrow = rThrowIO io ex
   rThrow ["git", "reset", "--quiet", "--hard"]
   let returnTo = if not (null branch) then branch else current
   rThrow ["git", "checkout", "--force", "--quiet", returnTo]
@@ -147,16 +163,8 @@ prepareToSplit io ex combinedProvided = do
         fmap
           (trimTrailingNewlines . snd)
           (effIO io (readProcessStdout (fromString (unwords s))))
-  let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString (unwords s)))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure ()
-  let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure (trimTrailingNewlines stdout)
+  let rThrow = rThrowIO io ex
+  let rBind = rBindIO io ex
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
@@ -243,16 +251,8 @@ applySubsequentCommits ::
   (String, String, String) ->
   Eff es ()
 applySubsequentCommits io ex (branch, current, combined) = do
-  let rThrow s = do
-        exitCode <- effIO io (runProcess (fromString (unwords s)))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure ()
-  let rBind s = do
-        (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords s)))
-        case exitCode of
-          failure@(ExitFailure {}) -> throw ex (show failure)
-          ExitSuccess -> pure (trimTrailingNewlines stdout)
+  let rThrow = rThrowIO io ex
+  let rBind = rBindIO io ex
   let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind ["git", "rev-parse", "--short", s])
