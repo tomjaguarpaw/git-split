@@ -73,8 +73,8 @@ rThrowIO = rThrowExitCode show
 
 isMerge :: e :> es => IOE e -> String -> Eff es Bool
 isMerge io commit = do
-  let s = ["git", "rev-parse", "--verify", "--quiet", commit <> "^2"]
-  exitCode <- effIO io (runProcess (fromString (unwords s)))
+  let s = ["rev-parse", "--verify", "--quiet", commit <> "^2"]
+  exitCode <- effIO io (runProcess (proc "git" s))
   pure $ case exitCode of
     ExitSuccess -> True
     ExitFailure {} -> False
