@@ -9,6 +9,7 @@ import Data.String (IsString (fromString))
 import System.Environment (getArgs)
 import System.Process.Typed
   ( ExitCode (ExitFailure, ExitSuccess),
+    proc,
     readProcessStdout,
     runProcess,
   )
@@ -42,7 +43,7 @@ rBindIO ::
   [String] ->
   Eff es LBS.ByteString
 rBindIO io ex f s = do
-  (exitCode, stdout) <- effIO io (readProcessStdout (fromString (unwords (f : s))))
+  (exitCode, stdout) <- effIO io (readProcessStdout (proc f s))
   case exitCode of
     failure@(ExitFailure {}) -> throw ex (show failure)
     ExitSuccess -> pure (trimTrailingNewlines stdout)
@@ -56,7 +57,7 @@ rThrowExitCode ::
   [String] ->
   Eff es ()
 rThrowExitCode k io ex f s = do
-  exitCode <- effIO io (runProcess (fromString (unwords (f : s))))
+  exitCode <- effIO io (runProcess (proc f s))
   case exitCode of
     failure@(ExitFailure {}) -> throw ex (k failure)
     ExitSuccess -> pure ()
@@ -288,10 +289,10 @@ applySubsequentCommits io ex (branch, current, combined) = do
       [ "commit",
         "--allow-empty",
         "--quiet",
-        "-m ",
-        "\"" <> LBS.unpack combinedSubject <> "\"",
         "-m",
-        "\"" <> LBS.unpack combinedBody <> "\""
+        LBS.unpack combinedSubject,
+        "-m",
+        LBS.unpack combinedBody
       ]
 
   restOfCombined <- rBind "git" ["rev-parse", "HEAD"]
