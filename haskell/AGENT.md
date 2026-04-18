@@ -6,30 +6,30 @@ How to use git-split:
 * Run `git-split prepareToSplit <commit>`.
 
 * The command will print some information about what to do next and
-  how to proceed subsequently. In more detail:
+  how to proceed subsequently, but in brief:
 
   * The repo is now on a detached `HEAD` at `<commit>`'s parent, with
     `<commit>`'s changes already applied to the working tree but
-    unstaged.
-
-  * Edit the files to the desired first intermediate state
-    and commit, then repeat for any further commits.
+    unstaged.  Edit the files to the desired first intermediate state
+    and commit. Repeat for any further commits you want to make.
 
   * The final commit does not have to bring the repo back to the same
-    state as `<commit>`.
+    state as `<commit>`.  Any remaining uncommitted differences to
+    `<commit>` will be committed automatically by
+    `applySubsequentCommits` (see next bullet).
 
-  * If you're happy with the commit(s) you've split off, run the
+  * Once you have split off the commit(s) you wanted to, run the
     `git-split applySubsequentCommits` command line you were given in
     the output of ``git-split prepareToSplit <commit>`.  Use that
     command verbatim.  Do not reconstruct it, as it embeds the
-    original `HEAD` and  commit hashes that must match exactly.  Your
+    original `HEAD` and commit hashes that must match exactly.  Your
     branch will then return to what it was, with the exception of
     `<commit>` having been split.
 
   * To abort the process run the `git-split restore` command line you
     were given in the output of `git-split prepareToSplit <commit>`,
     again verbatim.  You will then be returned to the state you were
-    in before you ran ``git-split `prepareToSplit <commit>`.
+    in before you ran `git-split prepareToSplit <commit>`.
 
 ## What to look for when splitting
 
@@ -43,6 +43,12 @@ splittable sub-changes within a larger commit:
 * **Two independent changes to different functions**:  If a commit
   changes two functions then it is often possible to make one of the
   changes in one commit and the other in a subsequent commit.
+
+* **Reordering of independent operations**: If a commit moves an
+  effectful operation relative to another that reorder can be a
+  separate commit from the structural refactoring that surrounds it.
+  The reorder commit may be behaviour-changing, but by isolating it
+  the change is made explicit and easy to review.
 
 ## Valid Haskell transformations
 
