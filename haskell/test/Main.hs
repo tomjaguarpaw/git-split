@@ -11,6 +11,10 @@ import System.IO.Temp qualified
 
 type CommitHash = String
 
+type TreeHash = String
+
+type BlobHash = String
+
 -- FIXME: could do this more safely with an Eff wrapper implementing
 -- MonadIO and MonadMask
 withSystemTempDirectory ::
@@ -36,6 +40,93 @@ withRepo io ex k = withSystemTempDirectory io "tmp-git" $ \dir -> do
   rThrowIO io ex "git" ["config", "user.email", "temp@example.com"]
   k dir
 
+readTreeEmpty ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  Eff es ()
+readTreeEmpty io ex = rThrowIO io ex "git" ["read-tree", "--empty"]
+
+readTree ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  TreeHash ->
+  Eff es ()
+readTree io ex tree = rThrowIO io ex "git" ["read-tree", tree]
+
+writeTree ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  Eff es TreeHash
+writeTree io ex = do
+  tree <- rBindIO io ex "git" ["write-tree"]
+  pure (LBS.unpack tree)
+
+commitTree ::
+  (Foldable t, e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  TreeHash ->
+  String ->
+  t String ->
+  Eff es CommitHash
+commitTree io ex tree message parents = do
+  let parentArgs = flip concatMap parents $ \parent ->
+        ["-p", parent]
+  let args = ["commit-tree", tree, "-m", message] ++ parentArgs
+
+  commit <- rBindIO io ex "git" args
+
+  pure (LBS.unpack commit)
+
+emptyIndex ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  Eff es TreeHash
+emptyIndex io ex = do
+  readTreeEmpty io ex
+  writeTree io ex
+
+makeEmptyBlob ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  Eff es BlobHash
+makeEmptyBlob io ex = do
+  blob <- rBindIO io ex "git" ["hash-object", "-w", "-t", "blob", "/dev/null"]
+  pure (LBS.unpack blob)
+
+addToIndex ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  Eff es ()
+addToIndex io ex blob path =
+  rThrowIO
+    io
+    ex
+    "git"
+    ["update-index", "--add", "--cacheinfo", "100644", blob, path]
+
+addEmptyFile ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  TreeHash ->
+  String ->
+  Eff es TreeHash
+addEmptyFile io ex prev path = do
+  emptyFile <- makeEmptyBlob io ex
+  rThrowIO io ex "git" ["read-tree", prev]
+  addToIndex io ex emptyFile path
+  tree <- rBindIO io ex "git" ["write-tree"]
+  pure (LBS.unpack tree)
+
 touchCommit ::
   (e1 <: es, e2 <: es) =>
   IOE e1 ->
@@ -48,15 +139,62 @@ touchCommit io ex mParent fp = do
   for_ @Maybe mParent $ \parent -> do
     rThrowIO io ex "git" ["checkout", parent]
   rThrowIO io ex "git" ["add", fp]
-  rThrowIO io ex "git" ["commit", "-m", "Added " <> fp]
-  hash <- rBindIO io ex "git" ["rev-parse", "HEAD"]
+  tree <- rBindIO io ex "git" ["write-tree"]
+
+  let parents = flip (concatMap @Maybe) mParent $ \parent ->
+        ["-p", parent]
+  effIO io (putStrLn "here1")
+  let args =
+        [ "commit-tree",
+          LBS.unpack tree,
+          "-m",
+          "committed " <> fp
+        ]
+          ++ parents
+  hash <- rBindIO io ex "git" args
   pure (LBS.unpack hash)
 
 main = runOrBail $ \io ex -> do
-  withRepo io ex $ \fp -> do
+  withRepo io ex $ \_ -> do
+    {-
     c1 <- touchCommit io ex Nothing "1"
     c2 <- touchCommit io ex (Just c1) "2"
     c3 <- touchCommit io ex (Just c2) "3"
     c4 <- touchCommit io ex (Just c3) "4"
+    -}
 
+    emptyBlob <- makeEmptyBlob io ex
+    readTreeEmpty io ex
+
+    addToIndex io ex emptyBlob "1"
+    t1 <- writeTree io ex
+    c1 <- commitTree io ex t1 "Committed 1" []
+
+    addToIndex io ex emptyBlob "2"
+    t2 <- writeTree io ex
+    c2 <- commitTree io ex t2 "Committed 2" [c1]
+
+    addToIndex io ex emptyBlob "3"
+    t3 <- writeTree io ex
+    c3 <- commitTree io ex t3 "Committed 3" [c2]
+
+    addToIndex io ex emptyBlob "4"
+    t4 <- writeTree io ex
+    c4 <- commitTree io ex t4 "Committed 4" [c3]
+
+    addToIndex io ex emptyBlob "5a"
+    t5a <- writeTree io ex
+    c5a <- commitTree io ex t5a "Committed 5a" [c4]
+
+    addToIndex io ex emptyBlob "5b"
+    t5b <- writeTree io ex
+    c5b <- commitTree io ex t5b "Committed 5b" [c4]
+
+    addToIndex io ex emptyBlob "6"
+    t6 <- writeTree io ex
+    c6 <- commitTree io ex t6 "Committed 6" [c5a, c5b]
+
+    effIO io (putStrLn "Done all commits")
+
+    rThrowIO io ex "git" ["checkout", c6]
     rThrowIO io ex "git" ["log", "--decorate", "--graph", "--all", "--oneline"]
