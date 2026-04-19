@@ -79,13 +79,15 @@ rThrowIO ::
   Eff es ()
 rThrowIO = rThrowExitCode show
 
-isMerge :: (e :> es) => IOE e -> String -> Eff es Bool
-isMerge io commit = do
+isMerge ::
+  (e1 :> es, e2 :> es) => IOE e1 -> Exception String e2 -> String -> Eff es Bool
+isMerge io ex commit = do
   let s = ["rev-parse", "--verify", "--quiet", commit <> "^2"]
   exitCode <- effIO io (runProcess (proc "git" s))
-  pure $ case exitCode of
-    ExitSuccess -> True
-    ExitFailure {} -> False
+  case exitCode of
+    ExitSuccess -> pure True
+    ExitFailure 1 -> pure False
+    ExitFailure e -> throw ex ("git rev-parse returned " <> show e)
 
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
@@ -250,7 +252,7 @@ prepareToSplit io ex combinedProvided = do
     )
 
   do
-    combinedIsMerge <- isMerge io combinedProvided
+    combinedIsMerge <- isMerge io ex combinedProvided
     when combinedIsMerge $ do
       throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
 

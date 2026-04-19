@@ -154,7 +154,12 @@ main = runOrBail $ \io ex -> do
     effIO io (putStrLn "Done all commits")
 
     rThrowIO io ex "git" ["checkout", c6]
-    rThrowIO io ex "git" ["log", "--patch"]
+    -- rThrowIO io ex "git" ["log", "--patch"]
     rThrowIO io ex "git" ["log", "--decorate", "--graph", "--all", "--oneline"]
+
+    rThrowIO io ex "git" ["diff"]
+
+    rThrowIO io ex "git" ["reset", "--hard"]
+    rThrowIO io ex "git" ["checkout", c6]
 
     withSplitRepo io ex c6 (\_ -> pure True)
