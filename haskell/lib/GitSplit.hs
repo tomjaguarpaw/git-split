@@ -208,6 +208,13 @@ prepareToSplitCli io ex combinedProvided = do
           ]
       )
 
+currentHead ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  Eff es [Char]
+currentHead io ex = fmap LBS.unpack (rBindIO io ex "git" ["rev-parse", "HEAD"])
+
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
@@ -226,7 +233,7 @@ prepareToSplit io ex combinedProvided = do
   let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
   branch <- fmap LBS.unpack (r ["git", "symbolic-ref", "--quiet", "--short", "HEAD"])
-  current <- fmap LBS.unpack (rBind "git" ["rev-parse", "HEAD"])
+  current <- currentHead io ex
   currentShort <- short current
 
   let branchOrCurrentShort =
@@ -307,7 +314,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
-  afterHandler <- fmap LBS.unpack (rBind "git" ["rev-parse", "HEAD"])
+  afterHandler <- currentHead io ex
   afterHandlerShort <- short afterHandler
 
   echoN "reset..."
@@ -335,7 +342,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
         LBS.unpack combinedBody
       ]
 
-  restOfCombined <- rBind "git" ["rev-parse", "HEAD"]
+  restOfCombined <- currentHead io ex
   -- Check 2 equality
   echoN "checking equality..."
   _ <-
@@ -343,7 +350,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
       "git"
       [ "diff",
         "--exit-code",
-        LBS.unpack restOfCombined,
+        restOfCombined,
         combined
       ]
 
@@ -354,12 +361,12 @@ applySubsequentCommits io ex (branch, current, combined) = do
       [ "rebase",
         "--quiet",
         "--onto",
-        LBS.unpack restOfCombined,
+        restOfCombined,
         combined,
         current
       ]
 
-  finished <- fmap LBS.unpack (rBind "git" ["rev-parse", "HEAD"])
+  finished <- currentHead io ex
   finishedShort <- short finished
   let branchOrFinishedShort =
         if not (null branch) then branch else finishedShort
