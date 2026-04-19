@@ -81,15 +81,6 @@ commitTree io ex tree message parents = do
 
   pure (LBS.unpack commit)
 
-emptyIndex ::
-  (e1 :> es, e2 :> es) =>
-  IOE e1 ->
-  Exception String e2 ->
-  Eff es TreeHash
-emptyIndex io ex = do
-  readTreeEmpty io ex
-  writeTree io ex
-
 makeEmptyBlob ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
