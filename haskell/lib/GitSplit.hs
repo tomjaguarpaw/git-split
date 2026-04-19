@@ -218,6 +218,18 @@ currentHead ::
   Eff es [Char]
 currentHead io ex = fmap LBS.unpack (rBindIO io ex "git" ["rev-parse", "HEAD"])
 
+hasUncommittedChanges ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  Eff es Bool
+hasUncommittedChanges io ex = do
+  exitCode <- effIO io (runProcess (proc "git" ["diff", "--quiet"]))
+  case exitCode of
+    ExitSuccess -> pure False
+    ExitFailure 1 -> pure True
+    ExitFailure e -> throw ex ("git diff --quiet returned " <> show e)
+
 prepareToSplit ::
   (e1 :> es, e2 :> es) =>
   IOE e1 ->
@@ -255,12 +267,13 @@ prepareToSplit io ex combinedProvided = do
     ["merge-base", "--is-ancestor", combinedProvided, current]
     (combinedProvided <> " is not an ancestor of " <> branchOrCurrentShort)
 
-  throwFailed
-    "git"
-    ["diff", "--quiet"]
-    ( "The repo has uncommitted changes.  "
-        <> "Stash, commit or reset them and then try again."
-    )
+  hasUncommittedChanges_ <- hasUncommittedChanges io ex
+  when hasUncommittedChanges_ $ do
+    throw
+      ex
+      ( "The repo has uncommitted changes.  "
+          <> "Stash, commit or reset them and then try again."
+      )
 
   throwFailed
     "git"

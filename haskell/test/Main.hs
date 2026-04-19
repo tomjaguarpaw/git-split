@@ -3,6 +3,7 @@ module Main (Main.main) where
 import Bluefin.Eff
 import Bluefin.Exception
 import Bluefin.IO
+import Control.Monad (unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Foldable (for_)
 import GitSplit
@@ -178,3 +179,32 @@ main = runOrBail $ \io ex -> do
     withSplitRepoExpectToThrow
       c7
       "Should have bailed out due to changes in the staging area"
+
+    handlerFailureShouldReturnToStart io ex c4 c2 emptyBlob
+
+handlerFailureShouldReturnToStart ::
+  (e1 :> es, e :> es) =>
+  IOE e1 ->
+  Exception String e ->
+  CommitHash ->
+  CommitHash ->
+  BlobHash ->
+  Eff es ()
+handlerFailureShouldReturnToStart io ex c4 c2 blob = do
+  rThrowIO io ex "git" ["checkout", c4, "--quiet"]
+  handle (\_ -> pure ()) $ \shouldThrow -> do
+    withSplitRepo io shouldThrow c2 $ \_ -> do
+      c2_1 <- commitWithJust io ex blob "2_1" [c2]
+      c2_2 <- commitWithJust io ex blob "2_2" [c2_1]
+      rThrowIO io ex "git" ["checkout", c2_2, "--quiet"]
+      pure False
+
+    throw ex "Should have bailed out due to failure of handler"
+
+  current <- currentHead io ex
+  unless (current == c4) $ do
+    throw ex "Didn't come back to c4"
+  do
+    hasUncommittedChanges_ <- hasUncommittedChanges io ex
+    when hasUncommittedChanges_ $ do
+      throw ex "Had uncommitted changes"
