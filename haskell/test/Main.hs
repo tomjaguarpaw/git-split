@@ -156,3 +156,5 @@ main = runOrBail $ \io ex -> do
     rThrowIO io ex "git" ["checkout", c6]
     rThrowIO io ex "git" ["log", "--patch"]
     rThrowIO io ex "git" ["log", "--decorate", "--graph", "--all", "--oneline"]
+
+    withSplitRepo io ex c6 (\_ -> pure True)
