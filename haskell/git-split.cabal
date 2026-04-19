@@ -4,7 +4,7 @@ version:            0.0.0.0
 -- synopsis:
 -- description:
 license:            MIT
-license-file:       ../LICENSE
+license-file:       LICENSE
 author:             Tom Ellis
 maintainer:         tom-git@jaguarpaw.co.uk
 -- copyright:
@@ -12,13 +12,8 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
-common warnings
+common defaults
     ghc-options: -Wall
-
-executable git-split
-    import:           warnings
-    main-is:          Main.hs
-    -- other-modules:
     default-extensions:
       -- GHC2021
       BangPatterns
@@ -75,7 +70,18 @@ executable git-split
       GADTs
       LambdaCase
 
+executable git-split
+    import:           defaults
+    default-extensions:
+      NoImplicitPrelude
+    main-is:          Main.hs
+    build-depends:    git-split-lib
+    hs-source-dirs:   exe
+    default-language: Haskell2010
 
+library git-split-lib
+    import:           defaults
+    exposed-modules:  GitSplit
     build-depends:    base ^>=4.18.3.0, bluefin, typed-process, bytestring
-    hs-source-dirs:   .
+    hs-source-dirs:   lib
     default-language: Haskell2010

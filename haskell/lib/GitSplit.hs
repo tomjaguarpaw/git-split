@@ -1,4 +1,4 @@
-module Main (main) where
+module GitSplit where
 
 import Bluefin.Eff (Eff, runEff_, (:>))
 import Bluefin.Exception (Exception, handle, throw)
