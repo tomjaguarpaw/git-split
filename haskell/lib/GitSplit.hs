@@ -1,5 +1,6 @@
 module GitSplit where
 
+import Bluefin.Compound (mapHandle)
 import Bluefin.Eff (Eff, runEff_, (:>))
 import Bluefin.Exception (Exception, handle, throw)
 import Bluefin.IO (IOE, effIO)
@@ -14,8 +15,15 @@ import System.Process.Typed
     runProcess,
   )
 
+runOrBail ::
+  (forall e. IOE e -> Exception String e -> Eff e ()) ->
+  IO ()
+runOrBail k =
+  runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex ->
+    k (mapHandle io) (mapHandle ex)
+
 main :: IO ()
-main = runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex -> do
+main = runOrBail $ \io ex -> do
   effIO io getArgs >>= \case
     "interactive" : rest -> case rest of
       [handler, combinedProvided] ->
@@ -71,7 +79,7 @@ rThrowIO ::
   Eff es ()
 rThrowIO = rThrowExitCode show
 
-isMerge :: e :> es => IOE e -> String -> Eff es Bool
+isMerge :: (e :> es) => IOE e -> String -> Eff es Bool
 isMerge io commit = do
   let s = ["rev-parse", "--verify", "--quiet", commit <> "^2"]
   exitCode <- effIO io (runProcess (proc "git" s))
