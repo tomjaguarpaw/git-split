@@ -104,39 +104,52 @@ addToIndex io ex blob path =
     "git"
     ["update-index", "--add", "--cacheinfo", "100644", blob, path]
 
+makeIndexContainOnly ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  Eff es ()
+makeIndexContainOnly io ex blob path = do
+  readTreeEmpty io ex
+  addToIndex io ex blob path
+
+commitIndex ::
+  (e1 :> es, e2 :> es, Foldable t) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  t CommitHash ->
+  Eff es CommitHash
+commitIndex io ex message parents = do
+  t <- writeTree io ex
+  commitTree io ex t message parents
+
+commitWithJust ::
+  (e1 :> es, e2 :> es, Foldable t) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  t CommitHash ->
+  Eff es CommitHash
+commitWithJust io ex blob filepath parents = do
+  makeIndexContainOnly io ex blob filepath
+  commitIndex io ex ("Committed " <> filepath) parents
+
 main :: IO ()
 main = runOrBail $ \io ex -> do
   withRepo io ex $ \_ -> do
     emptyBlob <- makeEmptyBlob io ex
-    readTreeEmpty io ex
 
-    addToIndex io ex emptyBlob "1"
-    t1 <- writeTree io ex
-    c1 <- commitTree io ex t1 "Committed 1" []
-
-    addToIndex io ex emptyBlob "2"
-    t2 <- writeTree io ex
-    c2 <- commitTree io ex t2 "Committed 2" [c1]
-
-    addToIndex io ex emptyBlob "3"
-    t3 <- writeTree io ex
-    c3 <- commitTree io ex t3 "Committed 3" [c2]
-
-    addToIndex io ex emptyBlob "4"
-    t4 <- writeTree io ex
-    c4 <- commitTree io ex t4 "Committed 4" [c3]
-
-    addToIndex io ex emptyBlob "5a"
-    t5a <- writeTree io ex
-    c5a <- commitTree io ex t5a "Committed 5a" [c4]
-
-    addToIndex io ex emptyBlob "5b"
-    t5b <- writeTree io ex
-    c5b <- commitTree io ex t5b "Committed 5b" [c4]
-
-    addToIndex io ex emptyBlob "6"
-    t6 <- writeTree io ex
-    c6 <- commitTree io ex t6 "Committed 6" [c5a, c5b]
+    c1 <- commitWithJust io ex emptyBlob  "1" []
+    c2 <- commitWithJust io ex emptyBlob  "2" [c1]
+    c3 <- commitWithJust io ex emptyBlob  "3" [c2]
+    c4 <- commitWithJust io ex emptyBlob  "4" [c3]
+    c5a <- commitWithJust io ex emptyBlob  "5a" [c4]
+    c5b <- commitWithJust io ex emptyBlob  "5b" [c4]
+    c6 <- commitWithJust io ex emptyBlob  "6" [c5a, c5b]
 
     effIO io (putStrLn "Done all commits")
 

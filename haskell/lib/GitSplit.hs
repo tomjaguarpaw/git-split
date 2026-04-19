@@ -4,7 +4,7 @@ import Bluefin.Compound (mapHandle)
 import Bluefin.Eff (Eff, runEff_, (:>))
 import Bluefin.Exception (Exception, handle, throw)
 import Bluefin.IO (IOE, effIO)
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.String (IsString (fromString))
 import System.Environment (getArgs)
@@ -90,6 +90,44 @@ isMerge io commit = do
 trimTrailingNewlines :: LBS.ByteString -> LBS.ByteString
 trimTrailingNewlines = LBS.dropWhileEnd (== '\n')
 
+withSplitRepo ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  ((String, String, String) -> Eff es Bool) ->
+  Eff es ()
+withSplitRepo io ex combinedProvided handler = do
+  let rBind = rBindIO io ex
+  let echo = effIO io . putStrLn
+  let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
+
+  t@(branch, current, _) <- prepareToSplit io ex combinedProvided
+
+  currentShort <- short current
+
+  let branchOrCurrentShort =
+        if not (null branch)
+          then
+            branch
+          else currentShort
+
+  success <- handler t
+
+  unless success $ do
+    afterFailedHandler <- short "HEAD"
+    echo
+      ( "The handler failed at "
+          <> afterFailedHandler
+          <> ".  Returning to "
+          <> branchOrCurrentShort
+          <> "."
+      )
+    restore io ex t
+    throw ex ""
+
+  applySubsequentCommits io ex t
+
 interactive ::
   (e2 :> es, e1 :> es) =>
   IOE e1 ->
@@ -98,40 +136,19 @@ interactive ::
   String ->
   Eff es ()
 interactive io ex handler combinedProvided = do
-  let rBind = rBindIO io ex
-  let echoN = effIO io . putStr
   let echo = effIO io . putStrLn
-  let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
+  let echoN = effIO io . putStr
 
-  t@(branch, current, _) <- prepareToSplit io ex combinedProvided
+  withSplitRepo io ex combinedProvided $ \_ -> do
+    echo ("I'm going to drop you into your chosen handler: " <> handler)
+    echoN "Please make any number of commits and then exit the handler with "
+    echoN "exit code 0. To abort and return to where you were, exit the handler "
+    echo "with a non-zero exit code."
 
-  echo ("I'm going to drop you into your chosen handler: " <> handler)
-  echoN "Please make any number of commits and then exit the handler with "
-  echoN "exit code 0. To abort and return to where you were, exit the handler "
-  echo "with a non-zero exit code."
-
-  currentShort <- short current
-  let branchOrCurrentShort =
-        if not (null branch)
-          then
-            branch
-          else currentShort
-
-  effIO io (runProcess (fromString handler)) >>= \case
-    ExitSuccess -> pure ()
-    ExitFailure {} -> do
-      afterFailedHandler <- short "HEAD"
-      echo
-        ( "The handler failed at "
-            <> afterFailedHandler
-            <> ".  Returning to "
-            <> branchOrCurrentShort
-            <> "."
-        )
-      restore io ex t
-      throw ex ""
-
-  applySubsequentCommits io ex t
+    r <- effIO io (runProcess (fromString handler))
+    pure $ case r of
+      ExitSuccess -> True
+      ExitFailure {} -> False
 
 restore ::
   (e1 :> es, e2 :> es) =>
