@@ -29,3 +29,9 @@ NEW_COMMIT=$(
     -p <new-parent2> \
     -F <(printf "%s" "$MSG")
 )
+
+* Or use `git diff-tree -s` instead of `git log -1`
+
+* Use `git update-ref refs/heads/whatever <hash>` instead of `git push .`
+
+* Use `git rev-list` to get all intermediate commits
