@@ -1,13 +1,14 @@
 module GitSplit where
 
-import Bluefin.Compound (mapHandle, useImpl)
+import Bluefin.Compound (mapHandle)
+import Bluefin.EarlyReturn (returnEarly, withEarlyReturn)
 import Bluefin.Eff (Eff, runEff_, (:>))
 import Bluefin.Exception (Exception, handle, throw)
 import Bluefin.IO (IOE, effIO)
-import Bluefin.Jump (jumpTo, withJump)
 import Bluefin.State (evalState, get, put)
 import Control.Monad (forever, unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
+import Data.Foldable (for_)
 import Data.String (IsString (fromString))
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -17,7 +18,6 @@ import System.Process.Typed
     readProcessStdout,
     runProcess,
   )
-import Prelude hiding (break)
 
 runOrBail ::
   (forall e. IOE e -> Exception String e -> Eff e ()) ->
@@ -269,18 +269,10 @@ prepareToSplit io ex combinedProvided = do
         <> "Stash, commit or reset them and then try again."
     )
 
-  withJump $ \break -> evalState current $ \commit -> forever $ do
-    commit' <- get commit
-    commitIsMerge <- isMerge io ex commit'
+  mMergeCommit <- containsMerges io ex current combined
 
-    when commitIsMerge $ do
-      throw ex (commit' <> " is a merge commit.  Cannot split.")
-
-    if commit' == combined
-      then
-        jumpTo break
-      else
-        put commit =<< currentHead io ex
+  for_ @Maybe mMergeCommit $ \mergeCommit ->
+    throw ex (mergeCommit <> " is a merge commit.  Cannot split.")
 
   combinedParent <- fmap LBS.unpack (rBind "git" ["rev-parse", combined <> "^"])
   combinedParentShort <- short combinedParent
@@ -311,6 +303,28 @@ prepareToSplit io ex combinedProvided = do
     )
 
   pure (branch, current, combined)
+
+containsMerges ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  Eff es (Maybe [Char])
+containsMerges io ex start end =
+  withEarlyReturn $ \ret -> evalState start $ \commit -> forever $ do
+    commit' <- get commit
+    commitIsMerge <- isMerge io ex commit'
+
+    when commitIsMerge $ do
+      returnEarly ret (Just commit')
+
+    if commit' == end
+      then
+        returnEarly ret Nothing
+      else do
+        next <- rBindIO io ex "git" ["rev-parse", commit' <> "^"]
+        put commit (LBS.unpack next)
 
 applySubsequentCommits ::
   (e1 :> es, e2 :> es) =>
