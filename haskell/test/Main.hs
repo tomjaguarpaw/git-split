@@ -155,22 +155,26 @@ main = runOrBail $ \io ex -> do
     rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
     rThrowIO io ex "git" ["checkout", c7, "--quiet"]
 
+    let withSplitRepoExpectToThrow c msg = do
+          handle (\_ -> pure ()) $ \shouldThrow -> do
+            withSplitRepo io shouldThrow c $ \_ -> do
+              throw ex msg
+
+          rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
+
     for_ [c4, c5a, c5b, c6] $ \c -> do
-      handle (\_ -> pure ()) $ \shouldThrow -> do
-        withSplitRepo io shouldThrow c $ \_ -> do
-          throw ex "Should have bailed out due to merge commit"
-    rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
+      withSplitRepoExpectToThrow
+        c
+        "Should have bailed out due to merge commit"
 
     rThrowIO io ex "touch" ["newfile"]
     rThrowIO io ex "git" ["add", "-N", "newfile"]
-    handle (\_ -> pure ()) $ \shouldThrow -> do
-      withSplitRepo io shouldThrow c7 $ \_ ->
-        throw ex "Should have bailed out due to unstaged changes"
-    rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
+    withSplitRepoExpectToThrow
+      c7
+      "Should have bailed out due to unstaged changes"
 
     rThrowIO io ex "touch" ["newfile"]
     rThrowIO io ex "git" ["add", "newfile"]
-    handle (\_ -> pure ()) $ \shouldThrow -> do
-      withSplitRepo io shouldThrow c7 $ \_ ->
-        throw ex "Should have bailed out due to changes in the staging area"
-    rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
+    withSplitRepoExpectToThrow
+      c7
+      "Should have bailed out due to changes in the staging area"

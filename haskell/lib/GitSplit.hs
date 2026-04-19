@@ -405,7 +405,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
     rThrow "git" ["push", "--quiet", "--force", ".", "HEAD:" <> branch]
     rThrow "git" ["checkout", "--quiet", branch]
 
-  -- Check 3 e;quality, and we have it checked out
+  -- Check 3 equality, and we have it checked out
   echoN "checking equality..."
   rThrow "git" ["diff", "--exit-code", "HEAD", current]
 
