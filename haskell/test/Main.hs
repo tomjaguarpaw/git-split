@@ -113,56 +113,9 @@ addToIndex io ex blob path =
     "git"
     ["update-index", "--add", "--cacheinfo", "100644", blob, path]
 
-addEmptyFile ::
-  (e1 :> es, e2 :> es) =>
-  IOE e1 ->
-  Exception String e2 ->
-  TreeHash ->
-  String ->
-  Eff es TreeHash
-addEmptyFile io ex prev path = do
-  emptyFile <- makeEmptyBlob io ex
-  rThrowIO io ex "git" ["read-tree", prev]
-  addToIndex io ex emptyFile path
-  tree <- rBindIO io ex "git" ["write-tree"]
-  pure (LBS.unpack tree)
-
-touchCommit ::
-  (e1 <: es, e2 <: es) =>
-  IOE e1 ->
-  Exception String e2 ->
-  Maybe CommitHash ->
-  FilePath ->
-  Eff es CommitHash
-touchCommit io ex mParent fp = do
-  effIO io (writeFile fp "")
-  for_ @Maybe mParent $ \parent -> do
-    rThrowIO io ex "git" ["checkout", parent]
-  rThrowIO io ex "git" ["add", fp]
-  tree <- rBindIO io ex "git" ["write-tree"]
-
-  let parents = flip (concatMap @Maybe) mParent $ \parent ->
-        ["-p", parent]
-  effIO io (putStrLn "here1")
-  let args =
-        [ "commit-tree",
-          LBS.unpack tree,
-          "-m",
-          "committed " <> fp
-        ]
-          ++ parents
-  hash <- rBindIO io ex "git" args
-  pure (LBS.unpack hash)
-
+main :: IO ()
 main = runOrBail $ \io ex -> do
   withRepo io ex $ \_ -> do
-    {-
-    c1 <- touchCommit io ex Nothing "1"
-    c2 <- touchCommit io ex (Just c1) "2"
-    c3 <- touchCommit io ex (Just c2) "3"
-    c4 <- touchCommit io ex (Just c3) "4"
-    -}
-
     emptyBlob <- makeEmptyBlob io ex
     readTreeEmpty io ex
 
@@ -197,4 +150,5 @@ main = runOrBail $ \io ex -> do
     effIO io (putStrLn "Done all commits")
 
     rThrowIO io ex "git" ["checkout", c6]
+    rThrowIO io ex "git" ["log", "--patch"]
     rThrowIO io ex "git" ["log", "--decorate", "--graph", "--all", "--oneline"]
