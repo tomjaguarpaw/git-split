@@ -1,10 +1,12 @@
 module GitSplit where
 
-import Bluefin.Compound (mapHandle)
+import Bluefin.Compound (mapHandle, useImpl)
 import Bluefin.Eff (Eff, runEff_, (:>))
 import Bluefin.Exception (Exception, handle, throw)
 import Bluefin.IO (IOE, effIO)
-import Control.Monad (unless, when)
+import Bluefin.Jump (jumpTo, withJump)
+import Bluefin.State (evalState, get, put)
+import Control.Monad (forever, unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.String (IsString (fromString))
 import System.Environment (getArgs)
@@ -15,6 +17,7 @@ import System.Process.Typed
     readProcessStdout,
     runProcess,
   )
+import Prelude hiding (break)
 
 runOrBail ::
   (forall e. IOE e -> Exception String e -> Eff e ()) ->
@@ -266,10 +269,18 @@ prepareToSplit io ex combinedProvided = do
         <> "Stash, commit or reset them and then try again."
     )
 
-  do
-    combinedIsMerge <- isMerge io ex combinedProvided
-    when combinedIsMerge $ do
-      throw ex (combinedProvided <> " is a merge commit.  Cannot split.")
+  withJump $ \break -> evalState current $ \commit -> forever $ do
+    commit' <- get commit
+    commitIsMerge <- isMerge io ex commit'
+
+    when commitIsMerge $ do
+      throw ex (commit' <> " is a merge commit.  Cannot split.")
+
+    if commit' == combined
+      then
+        jumpTo break
+      else
+        put commit =<< currentHead io ex
 
   combinedParent <- fmap LBS.unpack (rBind "git" ["rev-parse", combined <> "^"])
   combinedParentShort <- short combinedParent
