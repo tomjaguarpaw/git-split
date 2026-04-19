@@ -8,6 +8,7 @@ import Control.Monad (unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.String (IsString (fromString))
 import System.Environment (getArgs)
+import System.Exit (exitFailure)
 import System.Process.Typed
   ( ExitCode (ExitFailure, ExitSuccess),
     proc,
@@ -19,8 +20,13 @@ runOrBail ::
   (forall e. IOE e -> Exception String e -> Eff e ()) ->
   IO ()
 runOrBail k =
-  runEff_ $ \io -> handle (effIO io . putStrLn) $ \ex ->
-    k (mapHandle io) (mapHandle ex)
+  runEff_ $ \io -> handle
+    ( \msg -> effIO io $ do
+        putStrLn msg
+        exitFailure
+    )
+    $ \ex ->
+      k (mapHandle io) (mapHandle ex)
 
 main :: IO ()
 main = runOrBail $ \io ex -> do
@@ -83,7 +89,9 @@ isMerge ::
   (e1 :> es, e2 :> es) => IOE e1 -> Exception String e2 -> String -> Eff es Bool
 isMerge io ex commit = do
   let s = ["rev-parse", "--verify", "--quiet", commit <> "^2"]
-  exitCode <- effIO io (runProcess (proc "git" s))
+  -- rev-parse writes its result to stdout so by getting it and
+  -- ignoring it we stop that being printed to our stdout
+  (exitCode, _) <- effIO io (readProcessStdout (proc "git" s))
   case exitCode of
     ExitSuccess -> pure True
     ExitFailure 1 -> pure False

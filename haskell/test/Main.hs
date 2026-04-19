@@ -35,7 +35,7 @@ withRepo ::
   Eff es r
 withRepo io ex k = withSystemTempDirectory io "tmp-git" $ \dir -> do
   effIO io (setCurrentDirectory dir)
-  rThrowIO io ex "git" ["init"]
+  rThrowIO io ex "git" ["init", "--quiet"]
   rThrowIO io ex "git" ["config", "user.name", "temp"]
   rThrowIO io ex "git" ["config", "user.email", "temp@example.com"]
   k dir
@@ -143,23 +143,34 @@ main = runOrBail $ \io ex -> do
   withRepo io ex $ \_ -> do
     emptyBlob <- makeEmptyBlob io ex
 
-    c1 <- commitWithJust io ex emptyBlob  "1" []
-    c2 <- commitWithJust io ex emptyBlob  "2" [c1]
-    c3 <- commitWithJust io ex emptyBlob  "3" [c2]
-    c4 <- commitWithJust io ex emptyBlob  "4" [c3]
-    c5a <- commitWithJust io ex emptyBlob  "5a" [c4]
-    c5b <- commitWithJust io ex emptyBlob  "5b" [c4]
-    c6 <- commitWithJust io ex emptyBlob  "6" [c5a, c5b]
+    c1 <- commitWithJust io ex emptyBlob "1" []
+    c2 <- commitWithJust io ex emptyBlob "2" [c1]
+    c3 <- commitWithJust io ex emptyBlob "3" [c2]
+    c4 <- commitWithJust io ex emptyBlob "4" [c3]
+    c5a <- commitWithJust io ex emptyBlob "5a" [c4]
+    c5b <- commitWithJust io ex emptyBlob "5b" [c4]
+    c6 <- commitWithJust io ex emptyBlob "6" [c5a, c5b]
+    c7 <- commitWithJust io ex emptyBlob "7" [c6]
 
-    effIO io (putStrLn "Done all commits")
+    rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
+    rThrowIO io ex "git" ["checkout", c7, "--quiet"]
 
-    rThrowIO io ex "git" ["checkout", c6]
-    -- rThrowIO io ex "git" ["log", "--patch"]
-    rThrowIO io ex "git" ["log", "--decorate", "--graph", "--all", "--oneline"]
+    for_ [{-c4, c5a, c5b,-} c6] $ \c -> do
+      handle (\_ -> pure ()) $ \shouldThrow -> do
+        withSplitRepo io shouldThrow c $ \_ -> do
+          effIO io (putStrLn "doesn't happen")
+          throw ex "Should have bailed out due to merge commit"
 
-    rThrowIO io ex "git" ["diff"]
+    rThrowIO io ex "touch" ["newfile"]
+    rThrowIO io ex "git" ["add", "-N", "newfile"]
+    handle (\_ -> pure ()) $ \shouldThrow -> do
+      withSplitRepo io shouldThrow c7 (\_ -> pure True)
+      throw ex "Should have bailed out due to unstaged changes"
+    rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
 
-    rThrowIO io ex "git" ["reset", "--hard"]
-    rThrowIO io ex "git" ["checkout", c6]
-
-    withSplitRepo io ex c6 (\_ -> pure True)
+    rThrowIO io ex "touch" ["newfile"]
+    rThrowIO io ex "git" ["add", "newfile"]
+    handle (\_ -> pure ()) $ \shouldThrow -> do
+      withSplitRepo io shouldThrow c7 (\_ -> pure True)
+      throw ex "Should have bailed out due to changes in the staging area"
+    rThrowIO io ex "git" ["reset", "--hard", "--quiet"]
