@@ -381,8 +381,8 @@ applySubsequentCommits io ex (branch, current, combined) = do
   rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
   toReplay <- do
-    r <- rBind "git" ["rev-list", combined <> ".." <> current]
-    pure (lines (LBS.unpack r))
+    r <- rBind "git" ["rev-list", "--reverse", combined <> ".." <> current]
+    pure (combined : lines (LBS.unpack r))
 
   finished <- evalState afterHandler $ \stNextChild -> do
     for_ toReplay $ \nextParent -> do
@@ -391,7 +391,6 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
       -- Check 2 equality
       _ <- useImpl $ do
-        progress "checking equality"
         rThrow
           "git"
           [ "diff",
@@ -410,6 +409,9 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
   -- Check 3 equality
   progress "checking equality"
+  echo ""
+  echo finished
+  echo current
   rThrow "git" ["diff", "--exit-code", finished, current]
 
   if null branch
