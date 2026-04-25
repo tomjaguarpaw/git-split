@@ -12,6 +12,7 @@ import Data.Foldable (for_)
 import Data.String (IsString (fromString))
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
+import System.IO (hFlush, stdout)
 import System.Process.Typed
   ( ExitCode (ExitFailure, ExitSuccess),
     proc,
@@ -244,6 +245,7 @@ prepareToSplit io ex combinedProvided = do
   let rThrow = rThrowIO io ex
   let rBind = rBindIO io ex
   let echoN = effIO io . putStr
+  let progress s = effIO io (do putStr s; putStr "..."; hFlush stdout)
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
@@ -290,9 +292,9 @@ prepareToSplit io ex combinedProvided = do
   combinedParent <- fmap LBS.unpack (rBind "git" ["rev-parse", combined <> "^"])
   combinedParentShort <- short combinedParent
 
-  echoN "checkout..."
+  progress "checkout"
   rThrow "git" ["checkout", "--quiet", combined]
-  echoN "reset..."
+  progress "reset"
   rThrow "git" ["reset", "--quiet", combinedParent]
   echo "done"
 
@@ -349,25 +351,26 @@ applySubsequentCommits io ex (branch, current, combined) = do
   let rThrow = rThrowIO io ex
   let rBind = rBindIO io ex
   let echoN = effIO io . putStr
+  let progress s = effIO io (do putStr s; putStr "..."; hFlush stdout)
   let echo = effIO io . putStrLn
   let short s = fmap LBS.unpack (rBind "git" ["rev-parse", "--short", s])
 
   afterHandler <- currentHead io ex
   afterHandlerShort <- short afterHandler
 
-  echoN "reset..."
+  progress "reset"
   rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
-  echoN "checkout..."
+  progress "checkout"
   rThrow "git" ["checkout", "--quiet", "--force", combined]
 
-  echoN "reset..."
+  progress "reset"
   rThrow "git" ["reset", "--quiet", "--soft", afterHandler]
 
   combinedSubject <- rBind "git" ["diff-tree", "-s", "--pretty=%s", combined]
   combinedBody <- rBind "git" ["diff-tree", "-s", "--pretty=%b", combined]
 
-  echoN "commit..."
+  progress "commit"
   _ <-
     rThrow
       "git"
@@ -382,7 +385,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
   restOfCombined <- currentHead io ex
   -- Check 2 equality
-  echoN "checking equality..."
+  progress "checking equality"
   _ <-
     rThrow
       "git"
@@ -392,7 +395,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
         combined
       ]
 
-  echoN "rebase..."
+  progress "rebase"
   _ <-
     rThrow
       "git"
@@ -410,16 +413,16 @@ applySubsequentCommits io ex (branch, current, combined) = do
         if not (null branch) then branch else finishedShort
 
   -- Check 3 equality
-  echoN "checking equality..."
+  progress "checking equality"
   rThrow "git" ["diff", "--exit-code", finished, current]
 
   when (not (null branch)) $ do
-    echoN "setting branch to history with split..."
+    progress "setting branch to history with split"
     rThrow "git" ["push", "--quiet", "--force", ".", "HEAD:" <> branch]
     rThrow "git" ["checkout", "--quiet", branch]
 
   -- Check 3 equality, and we have it checked out
-  echoN "checking equality..."
+  progress "checking equality"
   rThrow "git" ["diff", "--exit-code", "HEAD", current]
 
   echo "done"
