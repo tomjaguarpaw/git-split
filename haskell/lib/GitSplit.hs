@@ -15,9 +15,13 @@ import System.Exit (exitFailure)
 import System.IO (hFlush, stdout)
 import System.Process.Typed
   ( ExitCode (ExitFailure, ExitSuccess),
+    ProcessConfig,
+    byteStringInput,
     proc,
     readProcessStdout,
     runProcess,
+    setEnv,
+    setStdin,
   )
 
 runOrBail ::
@@ -60,8 +64,18 @@ rBindIO ::
   String ->
   [String] ->
   Eff es LBS.ByteString
-rBindIO io ex f s = do
-  (exitCode, stdout) <- effIO io (readProcessStdout (proc f s))
+rBindIO io ex = rBindK io ex readProcessStdout
+
+rBindK ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  (ProcessConfig () () () -> IO (ExitCode, LBS.ByteString)) ->
+  String ->
+  [String] ->
+  Eff es LBS.ByteString
+rBindK io ex k f s = do
+  (exitCode, stdout) <- effIO io (k (proc f s))
   case exitCode of
     failure@(ExitFailure {}) -> throw ex (show failure)
     ExitSuccess -> pure (trimTrailingNewlines stdout)
@@ -361,29 +375,36 @@ applySubsequentCommits io ex (branch, current, combined) = do
   progress "reset"
   rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
-  progress "checkout"
-  rThrow "git" ["checkout", "--quiet", "--force", combined]
+  tree <- rBind "git" ["rev-parse", combined <> "^{tree}"]
 
-  progress "reset"
-  rThrow "git" ["reset", "--quiet", "--soft", afterHandler]
+  let diffTree f = rBind "git" ["diff-tree", "-s", "--format=%" <> f, combined]
 
-  combinedSubject <- rBind "git" ["diff-tree", "-s", "--pretty=%s", combined]
-  combinedBody <- rBind "git" ["diff-tree", "-s", "--pretty=%b", combined]
+  msg <- diffTree "B"
+  authorName <- diffTree "an"
+  authorEmail <- diffTree "ae"
+  authorDate <- diffTree "at"
+  committerName <- diffTree "cn"
+  committerEmail <- diffTree "ce"
+  committerDate <- diffTree "ct"
 
-  progress "commit"
-  _ <-
-    rThrow
-      "git"
-      [ "commit",
-        "--allow-empty",
-        "--quiet",
-        "-m",
-        LBS.unpack combinedSubject,
-        "-m",
-        LBS.unpack combinedBody
-      ]
+  let env =
+        [ ("AUTHOR_NAME", LBS.unpack authorName),
+          ("AUTHOR_EMAIL", LBS.unpack authorEmail),
+          ("AUTHOR_DATE", LBS.unpack authorDate),
+          ("COMMITTER_NAME", LBS.unpack committerName),
+          ("COMMITTER_EMAIL", LBS.unpack committerEmail),
+          ("COMMITTER_DATE", LBS.unpack committerDate)
+        ]
 
-  restOfCombined <- currentHead io ex
+  restOfCombined <-
+    fmap LBS.unpack $
+      rBindK
+        io
+        ex
+        (readProcessStdout . setStdin (byteStringInput msg) . setEnv env)
+        "git"
+        ["commit-tree", LBS.unpack tree, "-p", afterHandler]
+
   -- Check 2 equality
   progress "checking equality"
   _ <-
