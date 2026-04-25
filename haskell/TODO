@@ -1,1 +1,34 @@
-* Use `git update-ref refs/heads/whatever <hash>` instead of `git push .`
+I tried to make a faster form of rebase for the case where the new
+base repo state is the same as the old base repo state. I thought that
+would be faster because I could just create new trees with `git
+commit-tree` which would avoid touching the filesystem or applying
+diffs. However, it did not work.
+
+* Getting all the metadata for a commit in one process invocation is
+  good. We could do even better by doing git log of the entire
+  sequence of commits and get all the metadata for the commits we're
+  going to reply in one process.
+
+* However, even if we reduced the metadata acquisition time to zero we
+  can't do the rebase in one process. It needs one invocation of git
+  commit-tree per replayed commit, and my implementation of that on
+  its own is slower than git rebase, so we can't possibly beat git
+  rebase using `git commit-tree`.
+
+* git commit-tree is not necessarily itself slow, but it requires that I
+
+  * munge the parameters
+  * set up environment
+  * spawn the process
+  * feed it stdin
+
+  whereas git rebase performs the same logical operations in-memory.
+
+* Theoretically, if git doesn't already have optimizations for when
+  it's rebasing onto a base with the same repo state I could do better
+  if I used `libgit2`. This is yet to be investigated.
+
+N.B.:
+
+* Could use `git update-ref refs/heads/whatever <hash>` instead of
+  `git push .`
