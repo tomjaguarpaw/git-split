@@ -1,6 +1,6 @@
 module GitSplit where
 
-import Bluefin.Compound (mapHandle)
+import Bluefin.Compound (mapHandle, useImpl)
 import Bluefin.EarlyReturn (returnEarly, withEarlyReturn)
 import Bluefin.Eff (Eff, runEff_, (:>))
 import Bluefin.Exception (Exception, handle, throw)
@@ -376,32 +376,30 @@ applySubsequentCommits io ex (branch, current, combined) = do
   progress "reset"
   rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
-  restOfCombined <- applyOnTop io ex afterHandler combined
+  toReplay <- do
+    r <- rBind "git" ["rev-list", combined <> ".." <> current]
+    pure (lines (LBS.unpack r))
 
-  -- Check 2 equality
-  progress "checking equality"
-  _ <-
-    rThrow
-      "git"
-      [ "diff",
-        "--exit-code",
-        restOfCombined,
-        combined
-      ]
+  finished <- evalState afterHandler $ \stNextChild -> do
+    for_ toReplay $ \nextParent -> do
+      child <- get stNextChild
+      rebasedParent <- applyOnTop io ex child nextParent
 
-  progress "rebase"
-  _ <-
-    rThrow
-      "git"
-      [ "rebase",
-        "--quiet",
-        "--onto",
-        restOfCombined,
-        combined,
-        current
-      ]
+      -- Check 2 equality
+      _ <- useImpl $ do
+        progress "checking equality"
+        rThrow
+          "git"
+          [ "diff",
+            "--exit-code",
+            nextParent,
+            rebasedParent
+          ]
 
-  finished <- currentHead io ex
+      put stNextChild rebasedParent
+
+    get stNextChild
+
   finishedShort <- short finished
   let branchOrFinishedShort =
         if not (null branch) then branch else finishedShort
@@ -410,10 +408,13 @@ applySubsequentCommits io ex (branch, current, combined) = do
   progress "checking equality"
   rThrow "git" ["diff", "--exit-code", finished, current]
 
-  when (not (null branch)) $ do
-    progress "setting branch to history with split"
-    rThrow "git" ["push", "--quiet", "--force", ".", "HEAD:" <> branch]
-    rThrow "git" ["checkout", "--quiet", branch]
+  if null branch
+    then do
+      rThrow "git" ["checkout", "--quiet", current]
+    else do
+      progress "setting branch to history with split"
+      rThrow "git" ["push", "--quiet", "--force", ".", current <> ":" <> branch]
+      rThrow "git" ["checkout", "--quiet", branch]
 
   -- Check 3 equality, and we have it checked out
   progress "checking equality"
