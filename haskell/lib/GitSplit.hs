@@ -10,6 +10,7 @@ import Control.Monad (forever, unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Foldable (for_)
 import Data.String (IsString (fromString))
+import Data.Traversable (for)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hFlush, stdout)
@@ -380,21 +381,18 @@ applySubsequentCommits io ex (branch, current, combined) = do
   let diffTree f = rBind "git" ["diff-tree", "-s", "--format=%" <> f, combined]
 
   msg <- diffTree "B"
-  authorName <- diffTree "an"
-  authorEmail <- diffTree "ae"
-  authorDate <- diffTree "at"
-  committerName <- diffTree "cn"
-  committerEmail <- diffTree "ce"
-  committerDate <- diffTree "ct"
 
-  let env =
-        [ ("AUTHOR_NAME", LBS.unpack authorName),
-          ("AUTHOR_EMAIL", LBS.unpack authorEmail),
-          ("AUTHOR_DATE", LBS.unpack authorDate),
-          ("COMMITTER_NAME", LBS.unpack committerName),
-          ("COMMITTER_EMAIL", LBS.unpack committerEmail),
-          ("COMMITTER_DATE", LBS.unpack committerDate)
-        ]
+  env <- for
+    [ ("AUTHOR_NAME", "an"),
+      ("AUTHOR_EMAIL", "ae"),
+      ("AUTHOR_DATE", "at"),
+      ("COMMITTER_NAME", "cn"),
+      ("COMMITTER_EMAIL", "ce"),
+      ("COMMITTER_DATE", "ct")
+    ]
+    $ \t -> for t $ \format -> do
+      v <- diffTree format
+      pure (LBS.unpack v)
 
   restOfCombined <-
     fmap LBS.unpack $
