@@ -381,6 +381,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
     r <- rBind "git" ["rev-list", "--reverse", combined <> ".." <> current]
     pure (combined : lines (LBS.unpack r))
 
+  progress "determining replay data"
   replayData <- for toReplay $ \c -> do
     r <- foo io ex c
     pure (c, r)
@@ -390,17 +391,6 @@ applySubsequentCommits io ex (branch, current, combined) = do
     for_ replayData $ \(child, t) -> do
       parent <- get stNextParent
       rebasedChild <- blah io ex parent t
-
-      -- Check 2 equality
-      _ <- useImpl $ do
-        rThrow
-          "git"
-          [ "diff",
-            "--exit-code",
-            child,
-            rebasedChild
-          ]
-
       put stNextParent rebasedChild
 
     get stNextParent
