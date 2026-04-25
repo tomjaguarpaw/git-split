@@ -23,6 +23,7 @@ import System.Process.Typed
     setEnv,
     setStdin,
   )
+import Data.Traversable (for)
 
 runOrBail ::
   (forall e. IOE e -> Exception String e -> Eff e ()) ->
@@ -380,11 +381,15 @@ applySubsequentCommits io ex (branch, current, combined) = do
     r <- rBind "git" ["rev-list", "--reverse", combined <> ".." <> current]
     pure (combined : lines (LBS.unpack r))
 
+  replayData <- for toReplay $ \c -> do
+    r <- foo io ex c
+    pure (c, r)
+
   progress "rebasing"
   finished <- evalState afterHandler $ \stNextParent -> do
-    for_ toReplay $ \child -> do
+    for_ replayData $ \(child, t) -> do
       parent <- get stNextParent
-      rebasedChild <- applyOnTop io ex parent child
+      rebasedChild <- blah io ex parent t
 
       -- Check 2 equality
       _ <- useImpl $ do
@@ -465,6 +470,10 @@ applyOnTop ::
   String ->
   Eff es String
 applyOnTop io ex parent child = do
+  (tree, an, ae, at, cn, ce, ct, msg) <- foo io ex child
+  blah io ex parent (tree, an, ae, at, cn, ce, ct, msg)
+
+foo io ex child = do
   let rBind = rBindIO io ex
 
   -- Get all metadata at once to avoid the overhead of repeated
@@ -483,6 +492,9 @@ applyOnTop io ex parent child = do
       pure (tree, an, ae, at, cn, ce, ct, msg)
     _ -> throw ex "bad split"
 
+  pure (tree, an, ae, at, cn, ce, ct, msg)
+
+blah io ex parent (tree, an, ae, at, cn, ce, ct, msg) = do
   let env =
         (fmap . fmap) LBS.unpack $
           [ ("GIT_AUTHOR_NAME", an),
