@@ -412,10 +412,10 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
   if null branch
     then do
-      rThrow "git" ["checkout", "--quiet", current]
+      rThrow "git" ["checkout", "--quiet", finished]
     else do
       progress "setting branch to history with split"
-      rThrow "git" ["push", "--quiet", "--force", ".", current <> ":" <> branch]
+      rThrow "git" ["push", "--quiet", "--force", ".", finished <> ":" <> branch]
       rThrow "git" ["checkout", "--quiet", branch]
 
   -- Check 3 equality, and we have it checked out
@@ -475,12 +475,12 @@ applyOnTop io ex parent child = do
   msg <- diffTree "B"
 
   env <- for
-    [ ("AUTHOR_NAME", "an"),
-      ("AUTHOR_EMAIL", "ae"),
-      ("AUTHOR_DATE", "at"),
-      ("COMMITTER_NAME", "cn"),
-      ("COMMITTER_EMAIL", "ce"),
-      ("COMMITTER_DATE", "ct")
+    [ ("GIT_AUTHOR_NAME", "an"),
+      ("GIT_AUTHOR_EMAIL", "ae"),
+      ("GIT_AUTHOR_DATE", "at"),
+      ("GIT_COMMITTER_NAME", "cn"),
+      ("GIT_COMMITTER_EMAIL", "ce"),
+      ("GIT_COMMITTER_DATE", "ct")
     ]
     $ \t -> for t $ \format -> do
       v <- diffTree format
