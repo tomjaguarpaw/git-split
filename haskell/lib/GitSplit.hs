@@ -467,6 +467,8 @@ applyOnTop ::
 applyOnTop io ex parent child = do
   let rBind = rBindIO io ex
 
+  -- Get all metadata at once to avoid the overhead of repeated
+  -- subprocess creation
   result <-
     rBind
       "git"
