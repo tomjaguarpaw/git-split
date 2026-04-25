@@ -376,10 +376,12 @@ applySubsequentCommits io ex (branch, current, combined) = do
   progress "reset"
   rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
+  progress "determining rebase"
   toReplay <- do
     r <- rBind "git" ["rev-list", "--reverse", combined <> ".." <> current]
     pure (combined : lines (LBS.unpack r))
 
+  progress "rebasing"
   finished <- evalState afterHandler $ \stNextChild -> do
     for_ toReplay $ \nextParent -> do
       child <- get stNextChild
@@ -405,13 +407,11 @@ applySubsequentCommits io ex (branch, current, combined) = do
 
   -- Check 3 equality
   progress "checking equality"
-  echo ""
-  echo finished
-  echo current
   rThrow "git" ["diff", "--exit-code", finished, current]
 
   if null branch
     then do
+      progress "checking out"
       rThrow "git" ["checkout", "--quiet", finished]
     else do
       progress "setting branch to history with split"
