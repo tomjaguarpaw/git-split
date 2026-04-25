@@ -10,7 +10,6 @@ import Control.Monad (forever, unless, when)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Foldable (for_)
 import Data.String (IsString (fromString))
-import Data.Traversable (for)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hFlush, stdout)
@@ -468,23 +467,29 @@ applyOnTop ::
 applyOnTop io ex parent child = do
   let rBind = rBindIO io ex
 
-  tree <- rBind "git" ["rev-parse", child <> "^{tree}"]
+  result <-
+    rBind
+      "git"
+      [ "log",
+        "-1",
+        "--format=%T%x00%an%x00%ae%x00%at%x00%cn%x00%ce%x00%ct%x00%B",
+        child
+      ]
 
-  let diffTree f = rBind "git" ["diff-tree", "-s", "--format=%" <> f, child]
+  (tree, an, ae, at, cn, ce, ct, msg) <- case LBS.split '\000' result of
+    [tree, an, ae, at, cn, ce, ct, msg] ->
+      pure (tree, an, ae, at, cn, ce, ct, msg)
+    _ -> throw ex "bad split"
 
-  msg <- diffTree "B"
-
-  env <- for
-    [ ("GIT_AUTHOR_NAME", "an"),
-      ("GIT_AUTHOR_EMAIL", "ae"),
-      ("GIT_AUTHOR_DATE", "at"),
-      ("GIT_COMMITTER_NAME", "cn"),
-      ("GIT_COMMITTER_EMAIL", "ce"),
-      ("GIT_COMMITTER_DATE", "ct")
-    ]
-    $ \t -> for t $ \format -> do
-      v <- diffTree format
-      pure (LBS.unpack v)
+  let env =
+        (fmap . fmap) LBS.unpack $
+          [ ("GIT_AUTHOR_NAME", an),
+            ("GIT_AUTHOR_EMAIL", ae),
+            ("GIT_AUTHOR_DATE", at),
+            ("GIT_COMMITTER_NAME", cn),
+            ("GIT_COMMITTER_EMAIL", ce),
+            ("GIT_COMMITTER_DATE", ct)
+          ]
 
   fmap LBS.unpack $
     rBindK
