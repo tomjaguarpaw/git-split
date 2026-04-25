@@ -376,32 +376,7 @@ applySubsequentCommits io ex (branch, current, combined) = do
   progress "reset"
   rThrow "git" ["reset", "--quiet", "--hard", afterHandler]
 
-  tree <- rBind "git" ["rev-parse", combined <> "^{tree}"]
-
-  let diffTree f = rBind "git" ["diff-tree", "-s", "--format=%" <> f, combined]
-
-  msg <- diffTree "B"
-
-  env <- for
-    [ ("AUTHOR_NAME", "an"),
-      ("AUTHOR_EMAIL", "ae"),
-      ("AUTHOR_DATE", "at"),
-      ("COMMITTER_NAME", "cn"),
-      ("COMMITTER_EMAIL", "ce"),
-      ("COMMITTER_DATE", "ct")
-    ]
-    $ \t -> for t $ \format -> do
-      v <- diffTree format
-      pure (LBS.unpack v)
-
-  restOfCombined <-
-    fmap LBS.unpack $
-      rBindK
-        io
-        ex
-        (readProcessStdout . setStdin (byteStringInput msg) . setEnv env)
-        "git"
-        ["commit-tree", LBS.unpack tree, "-p", afterHandler]
+  restOfCombined <- applyOnTop io ex afterHandler combined
 
   -- Check 2 equality
   progress "checking equality"
@@ -479,3 +454,39 @@ applySubsequentCommits io ex (branch, current, combined) = do
   echo "reset your branch to what it was before"
   echo ""
   echo ("  $ git reset --hard " <> currentShort)
+
+applyOnTop ::
+  (e1 :> es, e2 :> es) =>
+  IOE e1 ->
+  Exception String e2 ->
+  String ->
+  String ->
+  Eff es String
+applyOnTop io ex parent child = do
+  let rBind = rBindIO io ex
+
+  tree <- rBind "git" ["rev-parse", child <> "^{tree}"]
+
+  let diffTree f = rBind "git" ["diff-tree", "-s", "--format=%" <> f, child]
+
+  msg <- diffTree "B"
+
+  env <- for
+    [ ("AUTHOR_NAME", "an"),
+      ("AUTHOR_EMAIL", "ae"),
+      ("AUTHOR_DATE", "at"),
+      ("COMMITTER_NAME", "cn"),
+      ("COMMITTER_EMAIL", "ce"),
+      ("COMMITTER_DATE", "ct")
+    ]
+    $ \t -> for t $ \format -> do
+      v <- diffTree format
+      pure (LBS.unpack v)
+
+  fmap LBS.unpack $
+    rBindK
+      io
+      ex
+      (readProcessStdout . setStdin (byteStringInput msg) . setEnv env)
+      "git"
+      ["commit-tree", LBS.unpack tree, "-p", parent]
