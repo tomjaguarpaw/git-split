@@ -205,6 +205,6 @@ handlerFailureShouldReturnToStart io ex c4 c2 blob = do
   unless (current == c4) $ do
     throw ex "Didn't come back to c4"
   do
-    hasUncommittedChanges_ <- hasUncommittedChanges io ex
-    when hasUncommittedChanges_ $ do
+    hasUnstagedChanges_ <- hasUnstagedChanges io ex
+    when hasUnstagedChanges_ $ do
       throw ex "Had uncommitted changes"
