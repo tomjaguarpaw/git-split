@@ -381,10 +381,10 @@ applySubsequentCommits io ex (branch, current, combined) = do
     pure (combined : lines (LBS.unpack r))
 
   progress "rebasing"
-  finished <- evalState afterHandler $ \stNextChild -> do
-    for_ toReplay $ \nextParent -> do
-      child <- get stNextChild
-      rebasedParent <- applyOnTop io ex child nextParent
+  finished <- evalState afterHandler $ \stNextParent -> do
+    for_ toReplay $ \child -> do
+      parent <- get stNextParent
+      rebasedChild <- applyOnTop io ex parent child
 
       -- Check 2 equality
       _ <- useImpl $ do
@@ -392,13 +392,13 @@ applySubsequentCommits io ex (branch, current, combined) = do
           "git"
           [ "diff",
             "--exit-code",
-            nextParent,
-            rebasedParent
+            child,
+            rebasedChild
           ]
 
-      put stNextChild rebasedParent
+      put stNextParent rebasedChild
 
-    get stNextChild
+    get stNextParent
 
   finishedShort <- short finished
   let branchOrFinishedShort =
