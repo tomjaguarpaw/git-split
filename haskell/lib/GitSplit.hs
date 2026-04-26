@@ -400,18 +400,15 @@ applySubsequentCommits io ex (branch, current, combined) = do
       ]
 
   progress "rebase"
-  _ <-
-    rThrow
-      "git"
-      [ "rebase",
-        "--quiet",
-        "--onto",
-        restOfCombined,
+  finished <- fmap LBS.unpack $
+    rBind
+      "graft-branch"
+      [ restOfCombined,
         combined,
         current
       ]
 
-  finished <- currentHead io ex
+  rThrow "git" ["checkout", "--quiet", finished]
   finishedShort <- short finished
   let branchOrFinishedShort =
         if not (null branch) then branch else finishedShort
