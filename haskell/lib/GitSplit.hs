@@ -264,11 +264,13 @@ prepareToSplit io ex combinedProvided = do
 
   let throwFailed f s msg = rThrowExitCode (const msg) io ex f s
 
+  progress "checking ancestor"
   throwFailed
     "git"
     ["merge-base", "--is-ancestor", combinedProvided, current]
     (combinedProvided <> " is not an ancestor of " <> branchOrCurrentShort)
 
+  progress "checking unstaged changes"
   hasUnstagedChanges_ <- hasUnstagedChanges io ex
   when hasUnstagedChanges_ $ do
     throw
@@ -277,6 +279,7 @@ prepareToSplit io ex combinedProvided = do
           <> "Stash, commit or reset them and then try again."
       )
 
+  progress "checking staged changes"
   throwFailed
     "git"
     ["diff", "--cached", "--quiet"]
@@ -284,6 +287,7 @@ prepareToSplit io ex combinedProvided = do
         <> "Stash, commit or reset them and then try again."
     )
 
+  progress "checking merges"
   mMergeCommit <- containsMerges io ex current combined
 
   for_ @Maybe mMergeCommit $ \mergeCommit ->
