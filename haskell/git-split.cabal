@@ -82,7 +82,7 @@ executable git-split
 library git-split-lib
     import:           defaults
     exposed-modules:  GitSplit
-    build-depends:    base ^>=4.18.3.0, bluefin, typed-process, bytestring
+    build-depends:    base >=4.18 && < 4.23, bluefin, typed-process, bytestring
     hs-source-dirs:   lib
     default-language: Haskell2010
 
