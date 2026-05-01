@@ -19,15 +19,18 @@ jobs:
           ghc-version: latest
 
       - name: Update package list
+        working-directory: haskell
         run: cabal update
 
       - name: Build project
+        working-directory: haskell
         run: cabal build
 
       - name: Copy executable
+        working-directory: haskell
         run: |
-          mkdir dist-bin
-          cp $(cabal list-bin exe:your-exe-name) dist-bin/
+          mkdir -p ../dist-bin
+          cp "$(cabal list-bin exe:your-exe-name)" ../dist-bin/
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
