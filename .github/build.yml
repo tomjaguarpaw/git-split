@@ -1,0 +1,36 @@
+name: Build Haskell Executable
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Haskell (Cabal)
+        uses: haskell/actions/setup@v2
+        with:
+          cabal-version: latest
+          ghc-version: latest
+
+      - name: Update package list
+        run: cabal update
+
+      - name: Build project
+        run: cabal build
+
+      - name: Copy executable
+        run: |
+          mkdir dist-bin
+          cp $(cabal list-bin exe:your-exe-name) dist-bin/
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-executable
+          path: dist-bin/
