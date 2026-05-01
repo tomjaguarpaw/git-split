@@ -30,7 +30,7 @@ jobs:
         working-directory: haskell
         run: |
           mkdir -p ../dist-bin
-          cp "$(cabal list-bin exe:your-exe-name)" ../dist-bin/
+          cp "$(cabal list-bin exe:git-split)" ../dist-bin/
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
