@@ -1,5 +1,11 @@
 # `git-split`
 
+## Using `git-split` with agents
+
+For a version of `git-split` that is suitable for use with agents, see
+the [`haskell/` directory of the `haskell`
+branch](https://github.com/tomjaguarpaw/git-split/tree/haskell/haskell).
+
 ## What is `git-split`?
 
 `git-split` is the name of this project, which provides a shell
