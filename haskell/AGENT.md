@@ -20,7 +20,7 @@ How to use git-split:
 
   * Once you have split off the commit(s) you wanted to, run the
     `git-split applySubsequentCommits` command line you were given in
-    the output of ``git-split prepareToSplit <commit>`.  Use that
+    the output of `git-split prepareToSplit <commit>`.  Use that
     command verbatim.  Do not reconstruct it, as it embeds the
     original `HEAD` and commit hashes that must match exactly.  Your
     branch will then return to what it was, with the exception of
