@@ -1,8 +1,6 @@
 name: Build Haskell Executable
 
 on:
-  push:
-    branches: [ haskell ]
   workflow_dispatch:
 
 permissions:
