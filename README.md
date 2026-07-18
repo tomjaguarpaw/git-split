@@ -7,7 +7,7 @@ the "Releases" section of this Github project for an executable build
 from the [`haskell/`
 directory](https://github.com/tomjaguarpaw/git-split/tree/master/haskell).
 You'll want your agent to read
-[`AGENT.md`](https://github.com/tomjaguarpaw/git-split/blob/master/haskell/AGENT.md).
+[`AGENTS.md`](https://github.com/tomjaguarpaw/git-split/blob/master/haskell/AGENTS.md).
 
 ## What is `git-split`?
 
