@@ -4,12 +4,10 @@
 
 For a version of `git-split` that is suitable for use with agents, see
 the "Releases" section of this Github project for an executable build
-from the [`haskell/` directory of the `haskell`
-branch](https://github.com/tomjaguarpaw/git-split/tree/haskell/haskell).
-[`haskell/` directory of the `haskell`
-branch](https://github.com/tomjaguarpaw/git-split/tree/haskell/haskell).
-You'll want your agent to read [`AGENT.md` from that
-branch](https://github.com/tomjaguarpaw/git-split/blob/haskell/haskell/AGENT.md).
+from the [`haskell/`
+directory](https://github.com/tomjaguarpaw/git-split/tree/master/haskell).
+You'll want your agent to read
+[`AGENT.md`](https://github.com/tomjaguarpaw/git-split/blob/master/haskell/AGENT.md).
 
 ## What is `git-split`?
 
