@@ -1,0 +1,56 @@
+name: Build Haskell Executable
+
+on:
+  push:
+    branches: [ haskell ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Haskell (Cabal)
+        uses: haskell/actions/setup@v2
+        with:
+          cabal-version: latest
+          ghc-version: latest
+
+      - name: Update package list
+        working-directory: haskell
+        run: cabal update
+
+      - name: Build project
+        working-directory: haskell
+        run: cabal build
+
+      - name: Get executable path
+        id: bin
+        working-directory: haskell
+        run: echo "path=$(cabal list-bin exe:git-split)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: build-${{ github.run_number }}
+          release_name: Build ${{ github.run_number }}
+          draft: false
+          prerelease: true
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ${{ steps.bin.outputs.path }}
+          asset_name: git-split-linux
+          asset_content_type: application/octet-stream
