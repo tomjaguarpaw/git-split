@@ -1,0 +1,36 @@
+#!/usr/bin/python3
+
+import pygit2
+import sys
+
+def graft_branch(repo_path, new_base, old_base, tip):
+    repo = pygit2.Repository(repo_path)
+
+    old_base = repo.revparse_single(old_base).id
+    new_base = repo.revparse_single(new_base).id
+    tip = repo.revparse_single(tip).id
+
+    walk = repo.walk(tip, pygit2.GIT_SORT_TOPOLOGICAL | pygit2.GIT_SORT_REVERSE)
+
+    # IMPORTANT: exclude everything reachable from old_base (including itself)
+    walk.hide(old_base)
+
+    new_parent = new_base
+    for c in walk:
+        new_oid = repo.create_commit(
+            None,
+            c.author,
+            c.committer,
+            c.message,
+            c.tree_id,
+            [new_parent]
+        )
+        new_parent = new_oid
+
+    return new_parent
+
+def main():
+    new_tip = graft_branch(".", sys.argv[1], sys.argv[2], sys.argv[3])
+    print(new_tip)
+
+if __name__ == '__main__': main()
